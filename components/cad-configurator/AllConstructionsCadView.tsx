@@ -2960,6 +2960,13 @@ export function AllConstructionsCadView({
                 (item.name.toLowerCase().includes("6") ||
                   Boolean(item.shortName && item.shortName.toLowerCase().includes("6")));
 
+              const isRoof =
+                !isTriangle &&
+                !isPergola &&
+                (item.name.toLowerCase().includes("zadaszen") ||
+                  Boolean(item.shortName && item.shortName.toLowerCase().includes("zadaszen")) ||
+                  Boolean(item.systemName && item.systemName.toLowerCase().includes("zadaszen")));
+
               const padLeft = 120;
               const padRight = 180;
               const padTop = 200;
@@ -3045,6 +3052,8 @@ export function AllConstructionsCadView({
                               ? "Trójkąt dachowy"
                               : isPergola
                               ? `Pergola ${isPergola6Posts ? "6-słupowa" : "4-słupowa"} (${panes} mod.)`
+                              : isRoof
+                              ? `Zadaszenie (${panes} pól)`
                               : `${panes}-torowy`}
                           </span>
                         </div>
@@ -3345,6 +3354,37 @@ export function AllConstructionsCadView({
                                   </text>
                                 </g>
                               ))}
+                            </g>
+                          );
+                        })()
+                      ) : isRoof ? (
+                        (() => {
+                          const wallBeamH = Math.min(130, Math.max(85, Math.round(Math.min(width, height) * 0.042)));
+                          const gutterH = Math.min(140, Math.max(95, Math.round(wallBeamH * 1.1)));
+                          const rafterW = Math.min(68, Math.max(46, Math.round(width * 0.014)));
+                          const postSize = Math.min(165, Math.max(115, Math.round(wallBeamH * 1.25)));
+                          const effFields = Math.max(2, panes);
+                          const innerY = padTop + wallBeamH;
+                          const innerH = height - wallBeamH - gutterH;
+                          const fieldSpan = (width - rafterW) / effFields;
+                          const postsCount = width > 10060 ? 4 : width > 6060 ? 3 : 2;
+                          return (
+                            <g>
+                              <rect x={padLeft - 2} y={padTop - 2} width={width + 4} height={height + 4} fill="none" stroke="#dc2626" strokeWidth="2" />
+                              <rect x={padLeft} y={innerY} width={width} height={innerH} fill="#f8fafc" stroke="#1e242b" strokeWidth="1.5" />
+                              {Array.from({ length: effFields + 1 }).map((_, rIdx) => (
+                                <rect key={rIdx} x={padLeft + rIdx * fieldSpan} y={innerY} width={rafterW} height={innerH} fill="#29323d" />
+                              ))}
+                              <rect x={padLeft} y={padTop} width={width} height={wallBeamH} fill="#1e293b" />
+                              <rect x={padLeft} y={padTop + height - gutterH} width={width} height={gutterH} fill="#29323d" />
+                              {Array.from({ length: postsCount }).map((_, idx) => {
+                                const ratio = postsCount === 1 ? 0 : idx / (postsCount - 1);
+                                const px = padLeft + Math.round((width - postSize) * ratio);
+                                const py = padTop + height - postSize;
+                                return (
+                                  <rect key={idx} x={px} y={py} width={postSize} height={postSize} fill="#0f172a" stroke="#4ABBC3" strokeWidth="3" />
+                                );
+                              })}
                             </g>
                           );
                         })()

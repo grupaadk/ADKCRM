@@ -6,6 +6,11 @@ import {
   checkIsStandard,
   isGlassSystemConstruction,
 } from "../lib/glassPricing";
+import {
+  calculateRoofPricing,
+  getRoofCoverType,
+  isRoofConstruction,
+} from "../lib/roofPricing";
 import { matchPricingRange } from "../lib/pricingRanges";
 import { getCurrentUser } from "./lib/auth";
 
@@ -770,28 +775,47 @@ export const addConstructionPosition = mutation({
       ((args.name || construction?.name || "").toLowerCase().includes("6") ||
         (construction?.code || "").toLowerCase().includes("6s"));
 
+    const isRoof = isRoofConstruction({
+      name: args.name || construction?.name,
+      systemName: args.systemName || construction?.defaultSystem,
+      fillType: args.fillType || construction?.defaultFillType,
+      code: construction?.code,
+    });
+
     const width =
       args.widthMm ||
       construction?.defaultWidthMm ||
-      (isTriangle ? 3000 : isPergola6Posts ? 6000 : isPergola ? 4000 : 2880);
+      (isTriangle ? 3000 : isPergola6Posts ? 6000 : isPergola ? 4000 : isRoof ? 4060 : 2880);
     const height =
       args.heightMm ||
       construction?.defaultHeightMm ||
-      (isTriangle ? 600 : isPergola ? 3000 : 2300);
+      (isTriangle ? 600 : isPergola || isRoof ? 3000 : 2300);
+    const roofCalc = isRoof
+      ? calculateRoofPricing(
+          width,
+          height,
+          getRoofCoverType({
+            name: args.name || construction?.name,
+            fillType: args.fillType || construction?.defaultFillType,
+            code: construction?.code,
+          })
+        )
+      : null;
     const panes =
       args.panesCount ||
+      (isRoof ? roofCalc?.fieldsCount : undefined) ||
       construction?.defaultPanesCount ||
       (isTriangle ? 1 : isPergola6Posts ? 2 : isPergola ? 1 : 3);
     const paneWidth = Math.round(width / panes);
     const system =
       args.systemName ||
-      construction?.defaultSystem ||
+      (isRoof ? `ZADASZENIE ${roofCalc?.series}` : construction?.defaultSystem) ||
       (isPergola ? "PERGOLA BIOKLIMATYCZNA" : undefined);
     const color = args.color || construction?.defaultColor || "RAL 7016MAT";
     const fill =
       args.fillType ||
       construction?.defaultFillType ||
-      (isPergola ? "LAMELE ALUMINIOWE" : "HART 10");
+      (isPergola ? "LAMELE ALUMINIOWE" : isRoof ? "POLIWĘGLAN 16MM" : "HART 10");
     const name =
       args.name ||
       construction?.name ||
@@ -799,6 +823,8 @@ export const addConstructionPosition = mutation({
         ? `Trójkąt podkrokwiowy (B=${width.toLocaleString("pl-PL")}, H=${height.toLocaleString("pl-PL")})`
         : isPergola
         ? `Pergola bioklimatyczna (B=${width.toLocaleString("pl-PL")}, D=${height.toLocaleString("pl-PL")})`
+        : isRoof
+        ? `Zadaszenie aluminiowe (B=${width.toLocaleString("pl-PL")}, D=${height.toLocaleString("pl-PL")})`
         : `System całoszklany ${panes}-torowy (B=${width.toLocaleString("pl-PL")}, H=${height.toLocaleString("pl-PL")})`);
     const shortName = construction?.name || `Konstrukcja ${positionIndex}`;
 
@@ -819,11 +845,15 @@ export const addConstructionPosition = mutation({
       ? matchPricingRange(construction.pricingRanges, width)
       : null;
 
-    const baseMaterialCost = matchedRange
+    const baseMaterialCost = roofCalc
+      ? roofCalc.materialCostNet
+      : matchedRange
       ? (matchedRange.costNet ?? matchedRange.priceNet)
       : (args.materialCostNet ?? construction?.materialCostNet ?? args.costNet ?? 0);
 
-    const baseMaterialPrice = matchedRange
+    const baseMaterialPrice = roofCalc
+      ? roofCalc.materialPriceNet
+      : matchedRange
       ? (matchedRange.priceNet && matchedRange.priceNet !== matchedRange.costNet
           ? matchedRange.priceNet
           : (construction?.materialMarkupType === "percent"
@@ -831,10 +861,10 @@ export const addConstructionPosition = mutation({
               : baseMaterialCost + (construction?.materialMarkupValue || 0)))
       : (args.materialPriceNet ?? construction?.materialPriceNet ?? (args.priceNet ?? construction?.defaultPriceNet ?? 0));
 
-    let baseInstPrice = args.installationPriceNet ?? construction?.installationPriceNet ?? 0;
-    let baseInstCost = args.installationCostNet ?? construction?.installationCostNet ?? 0;
+    let baseInstPrice = args.installationPriceNet ?? (roofCalc ? roofCalc.installationPriceNet : construction?.installationPriceNet ?? 0);
+    let baseInstCost = args.installationCostNet ?? (roofCalc ? roofCalc.installationCostNet : construction?.installationCostNet ?? 0);
 
-    if (construction?.installationUnit === "mb" && args.installationPriceNet === undefined) {
+    if (!roofCalc && construction?.installationUnit === "mb" && args.installationPriceNet === undefined) {
       const rateCost = construction.installationUnitRate ?? 200;
       const rateClient =
         construction.installationMarkupType === "percent"
@@ -843,6 +873,7 @@ export const addConstructionPosition = mutation({
       baseInstCost = Math.round((width / 1000) * rateCost);
       baseInstPrice = Math.round((width / 1000) * rateClient);
     } else if (
+      !roofCalc &&
       construction?.installationUnit === "m2" &&
       construction.installationUnitRate !== undefined &&
       args.installationPriceNet === undefined
@@ -857,8 +888,8 @@ export const addConstructionPosition = mutation({
       baseInstPrice = Math.round(areaM2 * rateClient);
     }
 
-    const basePriceNet = args.priceNet ?? (matchedRange ? (baseMaterialPrice + baseInstPrice) : (construction?.defaultPriceNet ?? 0));
-    const baseCostNet = args.costNet ?? (matchedRange ? (baseMaterialCost + baseInstCost) : (construction ? (construction.materialCostNet || 0) + (construction.installationCostNet || 0) : 0));
+    const basePriceNet = args.priceNet ?? (roofCalc ? roofCalc.priceNet : matchedRange ? (baseMaterialPrice + baseInstPrice) : (construction?.defaultPriceNet ?? 0));
+    const baseCostNet = args.costNet ?? (roofCalc ? roofCalc.costNet : matchedRange ? (baseMaterialCost + baseInstCost) : (construction ? (construction.materialCostNet || 0) + (construction.installationCostNet || 0) : 0));
 
     const now = Date.now();
     const itemId = await ctx.db.insert("offerConstructions", {
@@ -887,7 +918,9 @@ export const addConstructionPosition = mutation({
       installationCostNet: baseInstCost,
       installationPriceNet: baseInstPrice,
       isCustomPricing: args.priceNet !== undefined || args.costNet !== undefined || args.installationPriceNet !== undefined || args.installationCostNet !== undefined ? true : undefined,
-      pricingTier: matchedRange ? (matchedRange.label || `${matchedRange.minWidthMm}-${matchedRange.maxWidthMm} mm`) : undefined,
+      isStandard: roofCalc ? roofCalc.isStandard : undefined,
+      pricingTier: roofCalc ? roofCalc.pricingTier : matchedRange ? (matchedRange.label || `${matchedRange.minWidthMm}-${matchedRange.maxWidthMm} mm`) : undefined,
+      standardWidthCm: roofCalc ? roofCalc.standardWidthCm : undefined,
       segments,
       createdAt: now,
       updatedAt: now,
@@ -1002,7 +1035,39 @@ export const updateConstructionPosition = mutation({
       fillType: (fields.fillType as string) ?? item.fillType,
     });
 
-    if (isGlass && (fields.widthMm !== undefined || fields.heightMm !== undefined)) {
+    const isRoof = isRoofConstruction({
+      name: (fields.name as string) ?? item.name,
+      shortName: (fields.shortName as string) ?? item.shortName,
+      systemName: (fields.systemName as string) ?? item.systemName,
+      fillType: (fields.fillType as string) ?? item.fillType,
+    });
+
+    if (isRoof && (fields.widthMm !== undefined || fields.heightMm !== undefined)) {
+      const coverType = getRoofCoverType({
+        name: (fields.name as string) ?? item.name,
+        shortName: (fields.shortName as string) ?? item.shortName,
+        fillType: (fields.fillType as string) ?? item.fillType,
+      });
+      const calc = calculateRoofPricing(newWidth, newHeight, coverType);
+      patch.isStandard = fields.isStandard ?? calc.isStandard;
+      patch.pricingTier = fields.pricingTier ?? calc.pricingTier;
+      patch.standardWidthCm = fields.standardWidthCm ?? calc.standardWidthCm;
+      if (fields.systemName === undefined) {
+        patch.systemName = `ZADASZENIE ${calc.series}`;
+      }
+      if (fields.panesCount === undefined) {
+        patch.panesCount = calc.fieldsCount;
+      }
+
+      if (fields.materialPriceNet === undefined && fields.priceNet === undefined && fields.installationPriceNet === undefined && fields.installationCostNet === undefined) {
+        patch.materialCostNet = calc.materialCostNet;
+        patch.materialPriceNet = calc.materialPriceNet;
+        patch.installationCostNet = calc.installationCostNet;
+        patch.installationPriceNet = calc.installationPriceNet;
+        patch.priceNet = calc.priceNet;
+        patch.costNet = calc.costNet;
+      }
+    } else if (isGlass && (fields.widthMm !== undefined || fields.heightMm !== undefined)) {
       const calc = calculateGlassSystemPricing(newWidth, newHeight);
       patch.isStandard = fields.isStandard ?? calc.isStandard;
       patch.pricingTier = fields.pricingTier ?? calc.pricingTier;

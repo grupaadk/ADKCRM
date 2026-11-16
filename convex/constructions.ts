@@ -430,6 +430,60 @@ export const seedDefault = mutation({
         createdAt: now,
         updatedAt: now,
       },
+      {
+        name: "Zadaszenie aluminiowe — Poliwęglan",
+        code: "ZAD-POLI",
+        category: "Pergole i zadaszenia",
+        description: "Zadaszenie tarasowe aluminiowe na krokwiach z pokryciem z poliwęglanu (kalkulacja wg arkusza OFERTOWANIE ZADASZENIA)",
+        defaultSystem: "ZADASZENIE STANDARD",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 4060,
+        defaultHeightMm: 3000,
+        defaultPanesCount: 4,
+        defaultFillType: "POLIWĘGLAN 16MM",
+        defaultPriceNet: 10776,
+        materialCostNet: 4285,
+        materialMarkupType: "percent" as const,
+        materialMarkupValue: 52,
+        materialPriceNet: 6513,
+        installationUnit: "m2" as const,
+        installationUnitRate: 300,
+        installationMarkupType: "amount" as const,
+        installationMarkupValue: 50,
+        installationCostNet: 3654,
+        installationPriceNet: 4263,
+        isActive: true,
+        sortOrder: 7,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        name: "Zadaszenie aluminiowe — Szkło",
+        code: "ZAD-SZKLO",
+        category: "Pergole i zadaszenia",
+        description: "Zadaszenie tarasowe aluminiowe na krokwiach z pokryciem ze szkła bezpiecznego VSG (kalkulacja wg arkusza OFERTOWANIE ZADASZENIA)",
+        defaultSystem: "ZADASZENIE STANDARD",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 4060,
+        defaultHeightMm: 3000,
+        defaultPanesCount: 4,
+        defaultFillType: "SZKŁO VSG 44.2",
+        defaultPriceNet: 15814,
+        materialCostNet: 7199,
+        materialMarkupType: "percent" as const,
+        materialMarkupValue: 52,
+        materialPriceNet: 10942,
+        installationUnit: "m2" as const,
+        installationUnitRate: 300,
+        installationMarkupType: "amount" as const,
+        installationMarkupValue: 100,
+        installationCostNet: 3654,
+        installationPriceNet: 4872,
+        isActive: true,
+        sortOrder: 8,
+        createdAt: now,
+        updatedAt: now,
+      },
     ];
 
     for (const d of defaults) {
@@ -804,6 +858,156 @@ export const ensurePergolaConstruction = mutation({
       pergolaId: pergolaConstruction._id,
       created6,
       pergola6Id: pergola6Construction._id,
+    };
+  },
+});
+
+/**
+ * Zapewnia istnienie szablonów "Zadaszenie aluminiowe — Poliwęglan" (ZAD-POLI) oraz "Zadaszenie aluminiowe — Szkło" (ZAD-SZKLO)
+ */
+export const ensureRoofConstructions = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // 1. Kategoria "Pergole i zadaszenia"
+    const existingCategories = await ctx.db.query("constructionCategories").collect();
+    let roofCategory = existingCategories.find(
+      (cat) =>
+        cat.name.toLowerCase().includes("zadaszen") ||
+        cat.name.toLowerCase().includes("pergol") ||
+        (cat.code && cat.code.toUpperCase() === "PERG")
+    );
+
+    if (!roofCategory) {
+      const nextCatOrder =
+        existingCategories.length > 0
+          ? Math.max(...existingCategories.map((c) => c.sortOrder)) + 1
+          : 0;
+      const catId = await ctx.db.insert("constructionCategories", {
+        name: "Pergole i zadaszenia",
+        code: "PERG",
+        description: "Bioklimatyczne pergole lamelowe i zadaszenia tarasowe",
+        color: "emerald",
+        isActive: true,
+        sortOrder: nextCatOrder,
+        createdAt: now,
+        updatedAt: now,
+      });
+      roofCategory = (await ctx.db.get(catId))!;
+    }
+
+    const existingConstructions = await ctx.db.query("constructions").collect();
+
+    // 2. Zadaszenie — Poliwęglan (ZAD-POLI)
+    let polyRoof = existingConstructions.find(
+      (c) =>
+        c.code === "ZAD-POLI" ||
+        (c.name.toLowerCase().includes("zadaszen") && c.name.toLowerCase().includes("poliw"))
+    );
+    let createdPoly = false;
+    if (!polyRoof) {
+      const nextOrder =
+        existingConstructions.length > 0
+          ? Math.max(...existingConstructions.map((c) => c.sortOrder)) + 1
+          : 0;
+      const id = await ctx.db.insert("constructions", {
+        name: "Zadaszenie aluminiowe — Poliwęglan",
+        code: "ZAD-POLI",
+        categoryId: roofCategory._id,
+        category: roofCategory.name,
+        description:
+          "Zadaszenie tarasowe aluminiowe na krokwiach z pokryciem z poliwęglanu (kalkulacja wg arkusza OFERTOWANIE ZADASZENIA)",
+        defaultSystem: "ZADASZENIE STANDARD",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 4060,
+        defaultHeightMm: 3000,
+        defaultPanesCount: 4,
+        defaultFillType: "POLIWĘGLAN 16MM",
+        defaultPriceNet: 10776,
+        materialCostNet: 4285,
+        materialMarkupType: "percent",
+        materialMarkupValue: 52,
+        materialPriceNet: 6513,
+        installationUnit: "m2",
+        installationUnitRate: 300,
+        installationMarkupType: "amount",
+        installationMarkupValue: 50,
+        installationCostNet: 3654,
+        installationPriceNet: 4263,
+        isActive: true,
+        sortOrder: nextOrder,
+        createdAt: now,
+        updatedAt: now,
+      });
+      polyRoof = (await ctx.db.get(id))!;
+      createdPoly = true;
+    } else if (!polyRoof.categoryId) {
+      await ctx.db.patch(polyRoof._id, {
+        categoryId: roofCategory._id,
+        category: roofCategory.name,
+        updatedAt: now,
+      });
+    }
+
+    // 3. Zadaszenie — Szkło (ZAD-SZKLO)
+    const allAfterPoly = await ctx.db.query("constructions").collect();
+    let glassRoof = allAfterPoly.find(
+      (c) =>
+        c.code === "ZAD-SZKLO" ||
+        (c.name.toLowerCase().includes("zadaszen") && c.name.toLowerCase().includes("szk"))
+    );
+    let createdGlass = false;
+    if (!glassRoof) {
+      const nextOrder =
+        allAfterPoly.length > 0
+          ? Math.max(...allAfterPoly.map((c) => c.sortOrder)) + 1
+          : 0;
+      const id = await ctx.db.insert("constructions", {
+        name: "Zadaszenie aluminiowe — Szkło",
+        code: "ZAD-SZKLO",
+        categoryId: roofCategory._id,
+        category: roofCategory.name,
+        description:
+          "Zadaszenie tarasowe aluminiowe na krokwiach z pokryciem ze szkła bezpiecznego VSG (kalkulacja wg arkusza OFERTOWANIE ZADASZENIA)",
+        defaultSystem: "ZADASZENIE STANDARD",
+        defaultColor: "RAL 7016MAT",
+        defaultWidthMm: 4060,
+        defaultHeightMm: 3000,
+        defaultPanesCount: 4,
+        defaultFillType: "SZKŁO VSG 44.2",
+        defaultPriceNet: 15814,
+        materialCostNet: 7199,
+        materialMarkupType: "percent",
+        materialMarkupValue: 52,
+        materialPriceNet: 10942,
+        installationUnit: "m2",
+        installationUnitRate: 300,
+        installationMarkupType: "amount",
+        installationMarkupValue: 100,
+        installationCostNet: 3654,
+        installationPriceNet: 4872,
+        isActive: true,
+        sortOrder: nextOrder,
+        createdAt: now,
+        updatedAt: now,
+      });
+      glassRoof = (await ctx.db.get(id))!;
+      createdGlass = true;
+    } else if (!glassRoof.categoryId) {
+      await ctx.db.patch(glassRoof._id, {
+        categoryId: roofCategory._id,
+        category: roofCategory.name,
+        updatedAt: now,
+      });
+    }
+
+    return {
+      categoryId: roofCategory._id,
+      createdPoly,
+      polyId: polyRoof._id,
+      createdGlass,
+      glassId: glassRoof._id,
     };
   },
 });

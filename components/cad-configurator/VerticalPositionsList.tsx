@@ -85,6 +85,13 @@ export function VerticalPositionsList({
               (it.name.toLowerCase().includes("6") ||
                 Boolean(it.shortName && it.shortName.toLowerCase().includes("6")));
 
+            const isRoof =
+              !isTriangle &&
+              !isPergola &&
+              (it.name.toLowerCase().includes("zadaszen") ||
+                Boolean(it.shortName && it.shortName.toLowerCase().includes("zadaszen")) ||
+                Boolean(it.systemName && it.systemName.toLowerCase().includes("zadaszen")));
+
             return (
               <div
                 key={it._id}
@@ -215,6 +222,18 @@ export function VerticalPositionsList({
                             <rect x="55.5" y="50" width="9" height="9" fill="#0f172a" stroke="#4ABBC3" strokeWidth="0.8" />
                           </>
                         )}
+                      </g>
+                    ) : isRoof ? (
+                      <g>
+                        <rect x="2" y="2" width="116" height="58" fill="none" stroke="#dc2626" strokeWidth="0.8" />
+                        <rect x="3" y="7" width="114" height="48" fill="#f8fafc" stroke="#1e242b" strokeWidth="0.6" />
+                        {[3, 31, 59, 87, 114].map((rx) => (
+                          <rect key={rx} x={rx} y="7" width="3" height="48" fill="#29323d" />
+                        ))}
+                        <rect x="3" y="3" width="114" height="5" fill="#1e293b" />
+                        <rect x="3" y="53" width="114" height="6" fill="#29323d" />
+                        <rect x="3" y="50" width="9" height="9" fill="#0f172a" stroke="#4ABBC3" strokeWidth="0.8" />
+                        <rect x="108" y="50" width="9" height="9" fill="#0f172a" stroke="#4ABBC3" strokeWidth="0.8" />
                       </g>
                     ) : (
                       <>

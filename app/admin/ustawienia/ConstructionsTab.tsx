@@ -64,15 +64,17 @@ export function ConstructionsTab() {
   const seedCategories = useMutation(api.constructionCategories.seedDefault);
   const ensureTriangle = useMutation(api.constructions.ensureTriangleConstruction);
   const ensurePergola = useMutation(api.constructions.ensurePergolaConstruction);
+  const ensureRoof = useMutation(api.constructions.ensureRoofConstructions);
 
-  // Auto-seed categories if empty & ensure triangle + pergola categories/templates exist
+  // Auto-seed categories if empty & ensure triangle + pergola + roof categories/templates exist
   useEffect(() => {
     if (categories !== undefined && categories.length === 0) {
       seedCategories().catch(() => {});
     }
     ensureTriangle().catch(() => {});
     ensurePergola().catch(() => {});
-  }, [categories, seedCategories, ensureTriangle, ensurePergola]);
+    ensureRoof().catch(() => {});
+  }, [categories, seedCategories, ensureTriangle, ensurePergola, ensureRoof]);
 
   // View state: 'constructions' | 'categories' | 'editor'
   const [activeView, setActiveView] = useState<"constructions" | "categories" | "editor">("constructions");
@@ -578,6 +580,13 @@ export function ConstructionsTab() {
                         (c.code.toLowerCase().includes("6s") ||
                           c.name.toLowerCase().includes("6"));
 
+                      const isRoof =
+                        !isTriangle &&
+                        !isPergola &&
+                        (c.code.toLowerCase().startsWith("zad-") ||
+                          c.name.toLowerCase().includes("zadaszen") ||
+                          Boolean(c.defaultSystem && c.defaultSystem.toLowerCase().includes("zadaszen")));
+
                       return (
                         <tr
                           key={c._id}
@@ -697,6 +706,18 @@ export function ConstructionsTab() {
                                           <rect x="74" y="74" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
                                         </>
                                       )}
+                                    </g>
+                                  ) : isRoof ? (
+                                    <g>
+                                      <rect x="2" y="2" width="156" height="86" fill="none" stroke="#dc2626" strokeWidth="1.5" />
+                                      <rect x="4" y="10" width="152" height="70" fill="#f8fafc" stroke="#1e242b" strokeWidth="0.8" />
+                                      {[4, 42, 80, 118, 152].map((rx) => (
+                                        <rect key={rx} x={rx} y="10" width="4" height="70" fill="#29323d" />
+                                      ))}
+                                      <rect x="4" y="4" width="152" height="7" fill="#1e293b" />
+                                      <rect x="4" y="77" width="152" height="9" fill="#29323d" />
+                                      <rect x="4" y="74" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
+                                      <rect x="144" y="74" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
                                     </g>
                                   ) : (
                                     <>

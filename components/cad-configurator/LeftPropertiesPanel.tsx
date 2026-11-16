@@ -19,6 +19,13 @@ import {
   calculateGlassSystemPricing,
 } from "@/lib/glassPricing";
 import {
+  isRoofConstruction,
+  getRoofCoverType,
+  checkIsRoofStandard,
+  calculateRoofPricing,
+  getRoofStructureCounts,
+} from "@/lib/roofPricing";
+import {
   matchPricingRange,
   DEFAULT_TRIANGLE_PRICING_RANGES,
 } from "@/lib/pricingRanges";
@@ -177,6 +184,29 @@ export function LeftPropertiesPanel({
     fillType: item.fillType,
   });
 
+  const isRoof =
+    !isTriangle &&
+    !isPergola &&
+    isRoofConstruction({
+      name: item.name,
+      shortName: item.shortName,
+      systemName: item.systemName,
+      fillType: item.fillType,
+    });
+  const roofCoverType = isRoof
+    ? getRoofCoverType({
+        name: item.name,
+        shortName: item.shortName,
+        fillType: item.fillType,
+      })
+    : "polycarbonate";
+  const roofStandardInfo = isRoof
+    ? checkIsRoofStandard(
+        Math.round((item.widthMm || 0) / 10),
+        Math.round((item.heightMm || 0) / 10)
+      )
+    : null;
+
   const standardInfo = isGlass
     ? checkIsStandard(
         Math.round((item.widthMm || 0) / 10),
@@ -185,6 +215,25 @@ export function LeftPropertiesPanel({
     : null;
 
   const applyDimensionChange = (nextW: number, nextH: number) => {
+    if (isRoof) {
+      const calc = calculateRoofPricing(nextW, nextH, roofCoverType);
+      onChange({
+        widthMm: nextW,
+        heightMm: nextH,
+        panesCount: calc.fieldsCount,
+        systemName: `ZADASZENIE ${calc.series}`,
+        materialCostNet: calc.materialCostNet,
+        materialPriceNet: calc.materialPriceNet,
+        installationCostNet: calc.installationCostNet,
+        installationPriceNet: calc.installationPriceNet,
+        priceNet: calc.priceNet,
+        costNet: calc.costNet,
+        isStandard: calc.isStandard,
+        pricingTier: calc.pricingTier,
+        standardWidthCm: calc.standardWidthCm,
+      });
+      return;
+    }
     if (isGlass) {
       const calc = calculateGlassSystemPricing(nextW, nextH);
       onChange({
@@ -398,7 +447,7 @@ export function LeftPropertiesPanel({
 
             <div>
               <label className="block text-[10px] font-medium text-[#7c8597] mb-1">
-                {isPergola ? "Wysięg / Głębokość D (mm)" : "Wysokość H (mm)"}
+                {isPergola || isRoof ? "Wysięg / Głębokość D (mm)" : "Wysokość H (mm)"}
               </label>
               <input
                 type="number"
@@ -465,6 +514,26 @@ export function LeftPropertiesPanel({
                 })}
               </div>
             </div>
+          ) : isRoof ? (
+            (() => {
+              const { postsCount } = getRoofStructureCounts(item.widthMm || 4060);
+              const fieldsCount = item.panesCount || 4;
+              return (
+                <div>
+                  <label className="block text-[10px] font-medium text-[#7c8597] mb-1">
+                    Konstrukcja dachu
+                  </label>
+                  <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#f1f5f9] border border-[#d4dae3] rounded-md text-xs font-mono">
+                    <span className="font-bold text-[#0b1220]">
+                      {fieldsCount} pól ({fieldsCount + 1} krokwi)
+                    </span>
+                    <span className="text-[10px] font-sans text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-semibold">
+                      {postsCount} słupy frontowe
+                    </span>
+                  </div>
+                </div>
+              );
+            })()
           ) : (
             <div>
               <label className="block text-[10px] font-medium text-[#7c8597] mb-1">
@@ -504,6 +573,27 @@ export function LeftPropertiesPanel({
                   title={standardInfo.reason}
                 >
                   NIESTANDARD ({standardInfo.standardWidthCm})
+                </span>
+              )}
+            </div>
+          )}
+
+          {roofStandardInfo && (
+            <div className="flex items-center justify-between pt-2 border-t border-[#e3e7ee]">
+              <span className="text-[10px] text-[#7c8597] font-medium">
+                Seria ({roofCoverType === "glass" ? "Szkło" : "Poliwęglan"}):
+              </span>
+              {roofStandardInfo.isStandard ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <Check size={10} strokeWidth={2.5} />
+                  {roofStandardInfo.series} · STANDARD
+                </span>
+              ) : (
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-50 text-amber-700 border border-amber-200"
+                  title={`Najbliższy moduł z tabeli: ${roofStandardInfo.catalogKey}`}
+                >
+                  {roofStandardInfo.series} · NIESTANDARD ({roofStandardInfo.standardDepthCm}×{roofStandardInfo.standardWidthCm})
                 </span>
               )}
             </div>

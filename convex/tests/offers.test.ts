@@ -137,11 +137,11 @@ describe("CAD Offers and Constructions Module", () => {
 
     // Seed defaults
     const seedResult = await t.mutation(api.constructions.seedDefault, {});
-    expect(seedResult.created).toBe(7);
+    expect(seedResult.created).toBe(9);
 
     // List templates
     const list = await t.query(api.constructions.list, {});
-    expect(list.length).toBe(7);
+    expect(list.length).toBe(9);
     expect(list[0].code).toBe("SZKLO-3T");
     const triangleLeft = list.find((c) => c.code === "TROJKAT-TARAS-L");
     expect(triangleLeft).toBeDefined();
@@ -162,6 +162,13 @@ describe("CAD Offers and Constructions Module", () => {
     expect(pergola6Default?.defaultWidthMm).toBe(6000);
     expect(pergola6Default?.defaultPanesCount).toBe(2);
 
+    const roofPolyDefault = list.find((c) => c.code === "ZAD-POLI");
+    expect(roofPolyDefault).toBeDefined();
+    expect(roofPolyDefault?.defaultWidthMm).toBe(4060);
+
+    const roofGlassDefault = list.find((c) => c.code === "ZAD-SZKLO");
+    expect(roofGlassDefault).toBeDefined();
+
     // Create custom construction template
     const newId = await t.mutation(api.constructions.create, {
       name: "Pergola aluminiowa bioklimatyczna",
@@ -175,7 +182,7 @@ describe("CAD Offers and Constructions Module", () => {
     expect(newId).toBeDefined();
 
     const updatedList = await t.query(api.constructions.list, {});
-    expect(updatedList.length).toBe(8);
+    expect(updatedList.length).toBe(10);
 
     // Update description then clear it
     await t.mutation(api.constructions.update, {
@@ -356,6 +363,49 @@ describe("CAD Offers and Constructions Module", () => {
     expect(pergItem?.installationCostNet).toBe(3060);
     expect(pergItem?.installationPriceNet).toBe(3672);
     expect(pergItem?.priceNet).toBe(19575 + 3672);
+
+    // 9. Verify ensureRoofConstructions + Excel OFERTOWANIE ZADASZENIA pricing (STANDARD_400x1006)
+    const ensureRoofRes = await t.mutation(api.constructions.ensureRoofConstructions, {});
+    expect(ensureRoofRes.polyId).toBeDefined();
+    expect(ensureRoofRes.glassId).toBeDefined();
+
+    const polyRoofPosId = await t.mutation(api.offers.addConstructionPosition, {
+      offerId,
+      constructionId: ensureRoofRes.polyId,
+    });
+    await t.mutation(api.offers.updateConstructionPosition, {
+      itemId: polyRoofPosId,
+      widthMm: 10060,
+      heightMm: 4000,
+    });
+    const glassRoofPosId = await t.mutation(api.offers.addConstructionPosition, {
+      offerId,
+      constructionId: ensureRoofRes.glassId,
+    });
+    await t.mutation(api.offers.updateConstructionPosition, {
+      itemId: glassRoofPosId,
+      widthMm: 10060,
+      heightMm: 4000,
+    });
+
+    const offerWithRoofs = await t.query(api.offers.getOfferWithItems, { offerId });
+    const polyRoofItem = offerWithRoofs?.items.find((i) => i._id === polyRoofPosId);
+    const glassRoofItem = offerWithRoofs?.items.find((i) => i._id === glassRoofPosId);
+
+    // Excel STANDARD_400x1006 (40.24 m2): Poliwęglan mat: 18845, montaż: 8048 (koszt 6036) => 26893
+    expect(polyRoofItem?.materialCostNet).toBe(12398);
+    expect(polyRoofItem?.materialPriceNet).toBe(18845);
+    expect(polyRoofItem?.installationCostNet).toBe(6036);
+    expect(polyRoofItem?.installationPriceNet).toBe(8048);
+    expect(polyRoofItem?.priceNet).toBe(26893);
+    expect(polyRoofItem?.panesCount).toBe(10);
+
+    // Excel STANDARD_400x1006 (40.24 m2): Szkło mat: 31660, montaż: 10060 (koszt 8048) => 41720
+    expect(glassRoofItem?.materialCostNet).toBe(20829);
+    expect(glassRoofItem?.materialPriceNet).toBe(31660);
+    expect(glassRoofItem?.installationCostNet).toBe(8048);
+    expect(glassRoofItem?.installationPriceNet).toBe(10060);
+    expect(glassRoofItem?.priceNet).toBe(41720);
   });
 
   test("manages spatial CAD placement (placedAboveItemId, rowIndex)", async () => {
@@ -558,6 +608,24 @@ describe("CAD Offers and Constructions Module", () => {
     expect(pergola6Svg).toContain("S2");
     expect(pergola6Svg).toContain("S5");
     expect(pergola6Svg).toContain("S6");
+
+    const roofSvg = renderCadConstructionSvg({
+      _id: "test_roof_1",
+      positionIndex: 4,
+      name: "Zadaszenie aluminiowe — Poliwęglan",
+      systemName: "ZADASZENIE STANDARD",
+      widthMm: 4060,
+      heightMm: 3000,
+      panesCount: 4,
+      fillType: "POLIWĘGLAN 16MM",
+      color: "RAL 7016MAT",
+      quantity: 1,
+    });
+    expect(roofSvg).toContain("B = 4060");
+    expect(roofSvg).toContain("D = 3000");
+    expect(roofSvg).toContain("BELKA PRZYŚCIENNA");
+    expect(roofSvg).toContain("S1");
+    expect(roofSvg).toContain("S2");
   });
 
   test("assigns Google Docs template to service and resolves it in offer", async () => {

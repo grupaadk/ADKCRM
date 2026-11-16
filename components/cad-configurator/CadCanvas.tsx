@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { ZoomIn, ZoomOut, Maximize2, Ruler, Layers, Check, X } from "lucide-react";
+import { getRoofCoverType, getRoofStructureCounts, isRoofConstruction } from "@/lib/roofPricing";
 
 export interface CadSegment {
   widthMm: number;
@@ -245,6 +246,23 @@ export function CadCanvas({
     (item.name.toLowerCase().includes("6") ||
       Boolean(item.shortName && item.shortName.toLowerCase().includes("6")));
 
+  const isRoof =
+    !isTriangle &&
+    !isPergola &&
+    isRoofConstruction({
+      name: item.name,
+      shortName: item.shortName,
+      systemName: item.systemName,
+      fillType: item.fillType,
+    });
+  const roofCoverType = isRoof
+    ? getRoofCoverType({
+        name: item.name,
+        shortName: item.shortName,
+        fillType: item.fillType,
+      })
+    : "polycarbonate";
+
   // Obliczenia wymiarów kwater
   const paneWidth = Math.round(width / panes);
   const segments: CadSegment[] =
@@ -394,6 +412,8 @@ export function CadCanvas({
               ? "Trójkąt dachowy"
               : isPergola
               ? `Pergola ${isPergola6Posts ? "6-słupowa" : "4-słupowa"} · ${panes} ${panes === 1 ? "moduł" : "moduły"}`
+              : isRoof
+              ? `Zadaszenie · ${panes} pól`
               : `${panes} ${panes === 1 ? "tor" : panes < 5 ? "tory" : "torów"}`}
             )
           </span>
@@ -848,6 +868,206 @@ export function CadCanvas({
                     </>
                   );
                 })()
+              ) : isRoof ? (
+                (() => {
+                  const wallBeamH = Math.min(130, Math.max(85, Math.round(Math.min(width, height) * 0.042)));
+                  const gutterH = Math.min(140, Math.max(95, Math.round(wallBeamH * 1.1)));
+                  const rafterW = Math.min(68, Math.max(46, Math.round(width * 0.014)));
+                  const postSize = Math.min(165, Math.max(115, Math.round(wallBeamH * 1.25)));
+                  const { fieldsCount, postsCount } = getRoofStructureCounts(width);
+                  const effFields = Math.max(2, item.panesCount || fieldsCount);
+                  const innerY = originY + wallBeamH;
+                  const innerH = height - wallBeamH - gutterH;
+                  const innerW = width - rafterW;
+                  const fieldSpan = innerW / effFields;
+                  const isGlassRoof = roofCoverType === "glass";
+
+                  const postPositions = Array.from({ length: postsCount }).map((_, idx) => {
+                    const ratio = postsCount === 1 ? 0 : idx / (postsCount - 1);
+                    return {
+                      id: `S${idx + 1}`,
+                      x: originX + Math.round((width - postSize) * ratio),
+                      y: originY + height - postSize,
+                    };
+                  });
+
+                  return (
+                    <>
+                      {/* Czerwony obrys zewnętrzny CAD */}
+                      <rect
+                        x={originX - 2}
+                        y={originY - 2}
+                        width={width + 4}
+                        height={height + 4}
+                        fill="none"
+                        stroke="#dc2626"
+                        strokeWidth="2.5"
+                      />
+
+                      {/* Tło światła dachu */}
+                      <rect
+                        x={originX}
+                        y={innerY}
+                        width={width}
+                        height={innerH}
+                        fill={isGlassRoof ? "#f0f9ff" : "#f8fafc"}
+                        stroke="#1e242b"
+                        strokeWidth="2"
+                      />
+
+                      {/* Pola dachowe między krokwiami (Poliwęglan / Szkło VSG) */}
+                      {Array.from({ length: effFields }).map((_, fIdx) => {
+                        const fx = originX + rafterW / 2 + fIdx * fieldSpan;
+                        const fw = fieldSpan - rafterW;
+                        const cx = fx + fw / 2;
+                        const cy = innerY + innerH / 2;
+                        return (
+                          <g key={`roof-field-${fIdx}`}>
+                            <rect
+                              x={fx + 4}
+                              y={innerY + 4}
+                              width={Math.max(10, fw - 8)}
+                              height={Math.max(10, innerH - 8)}
+                              fill={isGlassRoof ? "#ffffff" : "#f1f5f9"}
+                              stroke={isGlassRoof ? "#38bdf8" : "#94a3b8"}
+                              strokeWidth="1.5"
+                            />
+                            {/* Komory poliwęglanu lub refleks szkła + strzałka spadku wody */}
+                            {isGlassRoof ? (
+                              <line
+                                x1={fx + 24}
+                                y1={innerY + innerH - 40}
+                                x2={fx + fw - 24}
+                                y2={innerY + 40}
+                                stroke="#38bdf8"
+                                strokeWidth="2"
+                                strokeOpacity="0.35"
+                              />
+                            ) : (
+                              [0.25, 0.5, 0.75].map((r) => (
+                                <line
+                                  key={r}
+                                  x1={fx + fw * r}
+                                  y1={innerY + 14}
+                                  x2={fx + fw * r}
+                                  y2={innerY + innerH - 14}
+                                  stroke="#cbd5e1"
+                                  strokeWidth="1.5"
+                                  strokeDasharray="12 10"
+                                />
+                              ))
+                            )}
+                            {/* Strzałka kierunku spadku dachu */}
+                            <line
+                              x1={cx}
+                              y1={cy - Math.min(180, innerH * 0.14)}
+                              x2={cx}
+                              y2={cy + Math.min(180, innerH * 0.14)}
+                              stroke="#0e7490"
+                              strokeWidth="2.5"
+                              markerEnd="url(#cadArrowEnd)"
+                              strokeOpacity="0.55"
+                            />
+                          </g>
+                        );
+                      })}
+
+                      {/* Krokwie nośne (effFields + 1 sztuk) */}
+                      {Array.from({ length: effFields + 1 }).map((_, rIdx) => {
+                        const rx = originX + rIdx * fieldSpan;
+                        return (
+                          <rect
+                            key={`rafter-${rIdx}`}
+                            x={rx}
+                            y={innerY}
+                            width={rafterW}
+                            height={innerH}
+                            fill="#29323d"
+                            stroke="#1e242b"
+                            strokeWidth="1.5"
+                          />
+                        );
+                      })}
+
+                      {/* Belka przyścienna (górna krawędź od ściany budynku) */}
+                      <rect
+                        x={originX}
+                        y={originY}
+                        width={width}
+                        height={wallBeamH}
+                        fill="#1e293b"
+                        stroke="#0f172a"
+                        strokeWidth="2"
+                      />
+                      <text
+                        x={originX + width / 2}
+                        y={originY + wallBeamH / 2 + 10}
+                        fill="#e2e8f0"
+                        fontSize={Math.min(30, Math.max(18, Math.round(wallBeamH * 0.3)))}
+                        fontWeight="900"
+                        textAnchor="middle"
+                        letterSpacing="3px"
+                      >
+                        BELKA PRZYŚCIENNA (ŚCIANA)
+                      </text>
+
+                      {/* Rynna frontowa (dolna krawędź) */}
+                      <rect
+                        x={originX}
+                        y={originY + height - gutterH}
+                        width={width}
+                        height={gutterH}
+                        fill="#29323d"
+                        stroke="#1e242b"
+                        strokeWidth="2"
+                      />
+                      <line
+                        x1={originX + postSize}
+                        y1={originY + height - gutterH / 2}
+                        x2={originX + width - postSize}
+                        y2={originY + height - gutterH / 2}
+                        stroke="#38bdf8"
+                        strokeWidth="2.5"
+                        strokeDasharray="14 10"
+                      />
+
+                      {/* Słupy frontowe (S1, S2, opcjonalnie S3/S4) */}
+                      {postPositions.map((post, idx) => (
+                        <g key={post.id}>
+                          <rect
+                            x={post.x}
+                            y={post.y}
+                            width={postSize}
+                            height={postSize}
+                            fill="#0f172a"
+                            stroke="#4ABBC3"
+                            strokeWidth="3"
+                          />
+                          {idx === 0 && (
+                            <circle
+                              cx={post.x + postSize / 2}
+                              cy={post.y + postSize / 2}
+                              r={Math.round(postSize * 0.22)}
+                              fill="#0284c7"
+                              stroke="#bae6fd"
+                              strokeWidth="2"
+                            />
+                          )}
+                          <text
+                            x={post.x + postSize / 2}
+                            y={post.y + postSize / 2 + 8}
+                            fill="#ffffff"
+                            fontSize="26"
+                            fontWeight="900"
+                            textAnchor="middle"
+                          >
+                            {post.id}
+                          </text>
+                        </g>
+                      ))}
+                    </>
+                  );
+                })()
               ) : (
                 <>
                   {/* Cienka czerwona linia obrysu zewnętrznego (charakterystyczna dla CAD/Prokal) */}
@@ -1265,9 +1485,9 @@ export function CadCanvas({
                         />
                         {canEditDimensions && (
                           <rect
-                            x={originX + width / 2 - (isPergola ? 145 : 110)}
+                            x={originX + width / 2 - (isPergola || isRoof ? 145 : 110)}
                             y={originY - 196}
-                            width={isPergola ? "290" : "220"}
+                            width={isPergola || isRoof ? "290" : "220"}
                             height="54"
                             rx="12"
                             fill={hoveredDim === "width" ? "#ecfeff" : "#ffffff"}
@@ -1283,7 +1503,7 @@ export function CadCanvas({
                           fontWeight="900"
                           textAnchor="middle"
                         >
-                          {isPergola ? `B = ${width}` : width}
+                          {isPergola || isRoof ? `B = ${width}` : width}
                         </text>
                       </g>
 
@@ -1296,7 +1516,7 @@ export function CadCanvas({
                       >
                         <title>
                           {canEditDimensions
-                            ? isPergola
+                            ? isPergola || isRoof
                               ? "Kliknij, aby zmienić wysięg / głębokość D (mm)"
                               : "Kliknij, aby zmienić wysokość całkowitą (mm)"
                             : undefined}
@@ -1334,9 +1554,9 @@ export function CadCanvas({
                         >
                           {canEditDimensions && (
                             <rect
-                              x={isPergola ? "-145" : "-110"}
+                              x={isPergola || isRoof ? "-145" : "-110"}
                               y="-38"
-                              width={isPergola ? "290" : "220"}
+                              width={isPergola || isRoof ? "290" : "220"}
                               height="54"
                               rx="12"
                               fill={hoveredDim === "height" ? "#ecfeff" : "#ffffff"}
@@ -1352,7 +1572,7 @@ export function CadCanvas({
                             fontWeight="900"
                             textAnchor="middle"
                           >
-                            {isPergola ? `D = ${height}` : height}
+                            {isPergola || isRoof ? `D = ${height}` : height}
                           </text>
                         </g>
                       </g>

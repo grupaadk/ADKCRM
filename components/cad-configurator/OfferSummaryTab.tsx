@@ -1286,6 +1286,13 @@ export function OfferSummaryTab({
                     (it.name.toLowerCase().includes("6") ||
                       Boolean(it.shortName && it.shortName.toLowerCase().includes("6")));
 
+                  const isRoof =
+                    !isTriangle &&
+                    !isPergola &&
+                    (it.name.toLowerCase().includes("zadaszen") ||
+                      Boolean(it.shortName && it.shortName.toLowerCase().includes("zadaszen")) ||
+                      Boolean(it.systemName && it.systemName.toLowerCase().includes("zadaszen")));
+
                   return (
                     <tr
                       key={it._id}
@@ -1402,6 +1409,18 @@ export function OfferSummaryTab({
                                           <rect x="65" y="57" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
                                         </>
                                       )}
+                                    </g>
+                                  ) : isRoof ? (
+                                    <g>
+                                      <rect x="2" y="2" width="136" height="66" fill="none" stroke="#dc2626" strokeWidth="1" />
+                                      <rect x="3" y="8" width="134" height="54" fill="#f8fafc" stroke="#1e242b" strokeWidth="0.8" />
+                                      {[3, 36.5, 70, 103.5, 134].map((rx) => (
+                                        <rect key={rx} x={rx} y="8" width="3" height="54" fill="#29323d" />
+                                      ))}
+                                      <rect x="3" y="3" width="134" height="6" fill="#1e293b" />
+                                      <rect x="3" y="60" width="134" height="7" fill="#29323d" />
+                                      <rect x="3" y="57" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
+                                      <rect x="127" y="57" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
                                     </g>
                                   ) : (
                                     <>

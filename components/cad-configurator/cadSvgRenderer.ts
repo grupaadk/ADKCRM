@@ -4,6 +4,7 @@
  */
 
 import { CadConstructionItem, CadSegment } from "./CadCanvas";
+import { getRoofCoverType, getRoofStructureCounts, isRoofConstruction } from "../../lib/roofPricing";
 
 /**
  * Generuje w pełni samodzielny kod SVG ze szkicem technicznym CAD danej konstrukcji.
@@ -40,6 +41,23 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
     isPergola &&
     ((item.name || "").toLowerCase().includes("6") ||
       Boolean(item.shortName && item.shortName.toLowerCase().includes("6")));
+
+  const isRoof =
+    !isTriangle &&
+    !isPergola &&
+    isRoofConstruction({
+      name: item.name,
+      shortName: item.shortName,
+      systemName: item.systemName,
+      fillType: item.fillType,
+    });
+  const roofCoverType = isRoof
+    ? getRoofCoverType({
+        name: item.name,
+        shortName: item.shortName,
+        fillType: item.fillType,
+      })
+    : "polycarbonate";
 
   const paneWidth = Math.round(width / panes);
   const segments: CadSegment[] =
@@ -212,6 +230,71 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
       ${centerBeamSvg}
       ${postsSvg}
     `;
+  } else if (isRoof) {
+    const wallBeamH = Math.min(130, Math.max(85, Math.round(Math.min(width, height) * 0.042)));
+    const gutterH = Math.min(140, Math.max(95, Math.round(wallBeamH * 1.1)));
+    const rafterW = Math.min(68, Math.max(46, Math.round(width * 0.014)));
+    const postSize = Math.min(165, Math.max(115, Math.round(wallBeamH * 1.25)));
+    const { fieldsCount, postsCount } = getRoofStructureCounts(width);
+    const effFields = Math.max(2, item.panesCount || fieldsCount);
+    const innerY = originY + wallBeamH;
+    const innerH = height - wallBeamH - gutterH;
+    const innerW = width - rafterW;
+    const fieldSpan = innerW / effFields;
+    const isGlassRoof = roofCoverType === "glass";
+
+    let fieldsSvg = "";
+    for (let fIdx = 0; fIdx < effFields; fIdx++) {
+      const fx = originX + rafterW / 2 + fIdx * fieldSpan;
+      const fw = fieldSpan - rafterW;
+      const cx = fx + fw / 2;
+      const cy = innerY + innerH / 2;
+      const detailSvg = isGlassRoof
+        ? `<line x1="${fx + 24}" y1="${innerY + innerH - 40}" x2="${fx + fw - 24}" y2="${innerY + 40}" stroke="#38bdf8" stroke-width="2" stroke-opacity="0.35" />`
+        : [0.25, 0.5, 0.75]
+            .map(
+              (r) =>
+                `<line x1="${fx + fw * r}" y1="${innerY + 14}" x2="${fx + fw * r}" y2="${innerY + innerH - 14}" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="12 10" />`
+            )
+            .join("");
+
+      fieldsSvg += `
+        <rect x="${fx + 4}" y="${innerY + 4}" width="${Math.max(10, fw - 8)}" height="${Math.max(10, innerH - 8)}" fill="${isGlassRoof ? "#ffffff" : "#f1f5f9"}" stroke="${isGlassRoof ? "#38bdf8" : "#94a3b8"}" stroke-width="1.5" />
+        ${detailSvg}
+        <line x1="${cx}" y1="${cy - Math.min(180, innerH * 0.14)}" x2="${cx}" y2="${cy + Math.min(180, innerH * 0.14)}" stroke="#0e7490" stroke-width="2.5" marker-end="url(#cadArrowEnd)" stroke-opacity="0.55" />
+      `;
+    }
+
+    let raftersSvg = "";
+    for (let rIdx = 0; rIdx <= effFields; rIdx++) {
+      const rx = originX + rIdx * fieldSpan;
+      raftersSvg += `<rect x="${rx}" y="${innerY}" width="${rafterW}" height="${innerH}" fill="#29323d" stroke="#1e242b" stroke-width="1.5" />`;
+    }
+
+    const postsSvg = Array.from({ length: postsCount })
+      .map((_, idx) => {
+        const ratio = postsCount === 1 ? 0 : idx / (postsCount - 1);
+        const px = originX + Math.round((width - postSize) * ratio);
+        const py = originY + height - postSize;
+        return `
+          <rect x="${px}" y="${py}" width="${postSize}" height="${postSize}" fill="#0f172a" stroke="#4ABBC3" stroke-width="3" />
+          ${idx === 0 ? `<circle cx="${px + postSize / 2}" cy="${py + postSize / 2}" r="${Math.round(postSize * 0.22)}" fill="#0284c7" stroke="#bae6fd" stroke-width="2" />` : ""}
+          <text x="${px + postSize / 2}" y="${py + postSize / 2 + 8}" fill="#ffffff" font-size="26" font-weight="900" text-anchor="middle">S${idx + 1}</text>
+        `;
+      })
+      .join("");
+
+    innerDrawing = `
+      <rect x="${originX - 2}" y="${originY - 2}" width="${width + 4}" height="${height + 4}" fill="none" stroke="#dc2626" stroke-width="2.5" />
+      <rect x="${originX}" y="${innerY}" width="${width}" height="${innerH}" fill="${isGlassRoof ? "#f0f9ff" : "#f8fafc"}" stroke="#1e242b" stroke-width="2" />
+      ${fieldsSvg}
+      ${raftersSvg}
+      <rect x="${originX}" y="${originY}" width="${width}" height="${wallBeamH}" fill="#1e293b" stroke="#0f172a" stroke-width="2" />
+      <text x="${originX + width / 2}" y="${originY + wallBeamH / 2 + 10}" fill="#e2e8f0" font-size="${Math.min(30, Math.max(18, Math.round(wallBeamH * 0.3)))}" font-weight="900" text-anchor="middle" letter-spacing="3px">BELKA PRZYŚCIENNA (ŚCIANA)</text>
+      <rect x="${originX}" y="${originY + height - gutterH}" width="${width}" height="${gutterH}" fill="#29323d" stroke="#1e242b" stroke-width="2" />
+      <line x1="${originX + postSize}" y1="${originY + height - gutterH / 2}" x2="${originX + width - postSize}" y2="${originY + height - gutterH / 2}" stroke="#38bdf8" stroke-width="2.5" stroke-dasharray="14 10" />
+      ${postsSvg}
+    `;
   } else {
     const openingW = width - frameThickness * 2;
     const openingH = height - frameThickness * 2;
@@ -309,7 +392,7 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
       <line x1="${originX - 60}" y1="${originY}" x2="${originX - 60}" y2="${originY + height}" stroke="#0b1220" stroke-width="3" marker-start="url(#cadArrowStart)" marker-end="url(#cadArrowEnd)" />
       <g transform="translate(${originX - 96}, ${originY + height / 2}) rotate(-90)">
         <rect x="-140" y="-36" width="280" height="52" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-        <text x="0" y="4" fill="#0b1220" font-size="38" font-weight="900" text-anchor="middle">${isPergola ? "D" : "H"} = ${height}</text>
+        <text x="0" y="4" fill="#0b1220" font-size="38" font-weight="900" text-anchor="middle">${isPergola || isRoof ? "D" : "H"} = ${height}</text>
       </g>
     `;
   }
