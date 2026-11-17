@@ -67,6 +67,7 @@ export function LeftPropertiesPanel({
   const [matPriceInput, setMatPriceInput] = React.useState<string>(matPrice ? matPrice.toString() : "");
   const [widthInput, setWidthInput] = React.useState<string>(String(item.widthMm || 2880));
   const [heightInput, setHeightInput] = React.useState<string>(String(item.heightMm || 2300));
+  const [nameInput, setNameInput] = React.useState<string>(item.name || "");
   const [focusedField, setFocusedField] = React.useState<string | null>(null);
   const [openRoofDropdown, setOpenRoofDropdown] = React.useState<"width" | "height" | null>(null);
   const roofDimContainerRef = React.useRef<HTMLDivElement | null>(null);
@@ -94,6 +95,10 @@ export function LeftPropertiesPanel({
   React.useEffect(() => {
     if (focusedField !== "height") setHeightInput(String(item.heightMm || 2300));
   }, [item.heightMm, focusedField]);
+
+  React.useEffect(() => {
+    if (focusedField !== "name") setNameInput(item.name || "");
+  }, [item._id, item.name, focusedField]);
 
   React.useEffect(() => {
     if (focusedField !== "instCost") setInstCostInput(instCost ? instCost.toString() : "");
@@ -374,6 +379,12 @@ export function LeftPropertiesPanel({
     }
   };
 
+  const commitName = () => {
+    if (nameInput !== item.name) {
+      onChange({ name: nameInput });
+    }
+  };
+
   return (
     <aside className="w-80 bg-white border-r border-[#e3e7ee] flex flex-col h-full text-[#1f2937] select-none overflow-hidden shrink-0">
       {/* Header */}
@@ -423,8 +434,19 @@ export function LeftPropertiesPanel({
           <input
             type="text"
             disabled={readOnly}
-            value={item.name}
-            onChange={(e) => onChange({ name: e.target.value })}
+            value={nameInput}
+            onFocus={() => setFocusedField("name")}
+            onChange={(e) => setNameInput(e.target.value)}
+            onBlur={() => {
+              setFocusedField(null);
+              commitName();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                commitName();
+                e.currentTarget.blur();
+              }
+            }}
             className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1.5 text-[#0b1220] font-medium focus:border-[#4ABBC3] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none text-xs"
             placeholder="np. System całoszklany 3-torowy"
           />
