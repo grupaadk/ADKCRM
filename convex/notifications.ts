@@ -120,11 +120,11 @@ export const deleteNotification = mutation({
 
 /**
  * Pomocnicza funkcja wewnętrzna do tworzenia powiadomień o nowej szansie sprzedaży.
- * Powiadamia aktywnych użytkowników z rolami 'admin' i 'sales' (z wykluczeniem twórcy).
+ * Powiadomienia o nowych szansach sprzedaży są obecnie wyłączone.
  */
 export async function notifyNewOpportunity(
-  ctx: MutationCtx,
-  args: {
+  _ctx: MutationCtx,
+  _args: {
     opportunityId: Id<"pendingJotformSubmissions">;
     clientName: string;
     city?: string;
@@ -133,36 +133,10 @@ export async function notifyNewOpportunity(
     creatorUserId?: Id<"users">;
   },
 ) {
-  const allUsers = await ctx.db.query("users").collect();
-
-  // Odbiorcy: aktywni użytkownicy z rolami admin i sales (oraz każdy niebędący montażem)
-  const recipients = allUsers.filter((u) => {
-    if (u.isActive === false) return false;
-    if (u.role === "montaz") return false;
-    return true;
-  });
-
-  const detailParts = [
-    args.city?.trim(),
-    args.services && args.services.length > 0 ? args.services.join(", ") : undefined,
-  ].filter(Boolean);
-
-  const message = detailParts.length > 0 ? detailParts.join(" • ") : "Nowe zapytanie ofertowe";
-  const now = Date.now();
-
-  for (const user of recipients) {
-    await ctx.db.insert("notifications", {
-      userId: user._id,
-      type: "new_opportunity",
-      title: `Nowa szansa: ${args.clientName}`,
-      message,
-      link: `/admin/szansa/${args.opportunityId}`,
-      entityType: "opportunity",
-      entityId: args.opportunityId,
-      read: false,
-      createdAt: now,
-    });
-  }
+  // Powiadomienia o nowej szansie sprzedaży są wyłączone.
+  void _ctx;
+  void _args;
+  return;
 }
 
 /**

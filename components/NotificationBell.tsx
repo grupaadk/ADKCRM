@@ -236,7 +236,7 @@ export function NotificationBell() {
                   Brak powiadomień
                 </p>
                 <p className="text-[11px] mt-0.5" style={{ color: "var(--text-mute)" }}>
-                  Nowe szanse sprzedaży i zdarzenia pojawią się tutaj.
+                  Nowe wiadomości i zdarzenia pojawią się tutaj.
                 </p>
               </div>
             ) : (

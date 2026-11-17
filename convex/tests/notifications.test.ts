@@ -22,7 +22,7 @@ async function createTestUser(
 }
 
 describe("In-App Notification System", () => {
-  test("generates notifications for active admin and sales users when a new opportunity is created", async () => {
+  test("does not generate notifications when a new opportunity is created", async () => {
     const t = convexTest(schema);
 
     const user1 = await createTestUser(t, "sales1@example.pl", "sales");
@@ -42,27 +42,11 @@ describe("In-App Notification System", () => {
 
     expect(oppId).toBeDefined();
 
-    // user1 is the creator, and user1 should also receive a notification
-    const user1Notifications = await user1.asUser.query(api.notifications.list, {});
-    expect(user1Notifications.length).toBe(1);
-    expect(user1Notifications[0].title).toBe("Nowa szansa: Marek Nowak");
-
-    // user2 (sales) should receive a notification
-    const user2Notifications = await user2.asUser.query(api.notifications.list, {});
-    expect(user2Notifications.length).toBe(1);
-    expect(user2Notifications[0].title).toBe("Nowa szansa: Marek Nowak");
-    expect(user2Notifications[0].message).toContain("Kraków");
-    expect(user2Notifications[0].message).toContain("Okna, Drzwi");
-    expect(user2Notifications[0].link).toBe(`/admin/szansa/${oppId}`);
-    expect(user2Notifications[0].read).toBe(false);
-
-    // admin should also receive a notification
-    const adminNotifications = await admin.asUser.query(api.notifications.list, {});
-    expect(adminNotifications.length).toBe(1);
-
-    // montaz should NOT receive sales opportunity notifications
-    const montazNotifications = await montaz.asUser.query(api.notifications.list, {});
-    expect(montazNotifications.length).toBe(0);
+    // No user should receive a new_opportunity notification
+    expect(await user1.asUser.query(api.notifications.list, {})).toEqual([]);
+    expect(await user2.asUser.query(api.notifications.list, {})).toEqual([]);
+    expect(await admin.asUser.query(api.notifications.list, {})).toEqual([]);
+    expect(await montaz.asUser.query(api.notifications.list, {})).toEqual([]);
   });
 
   test("manages unread count, markAsRead, and markAllAsRead correctly", async () => {
@@ -70,18 +54,24 @@ describe("In-App Notification System", () => {
 
     const user = await createTestUser(t, "user@example.pl", "sales");
 
-    // Create 2 opportunities from external/jotform handler (no creator specified)
-    await user.asUser.mutation(api.salesOpportunities.createSalesOpportunity, {
-      firstName: "Anna",
-      lastName: "Kowalska",
-      city: "Gdańsk",
-      services: ["Rolety"],
-    });
-    await user.asUser.mutation(api.salesOpportunities.createSalesOpportunity, {
-      firstName: "Piotr",
-      lastName: "Zieliński",
-      city: "Gdynia",
-      services: ["Brama"],
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert("notifications", {
+        userId: user.userId,
+        type: "order_message",
+        title: "Wiadomość 1",
+        message: "Treść 1",
+        read: false,
+        createdAt: now,
+      });
+      await ctx.db.insert("notifications", {
+        userId: user.userId,
+        type: "order_message",
+        title: "Wiadomość 2",
+        message: "Treść 2",
+        read: false,
+        createdAt: now + 1,
+      });
     });
 
     // Check unread count
@@ -111,9 +101,24 @@ describe("In-App Notification System", () => {
     const user1 = await createTestUser(t, "u1@example.pl", "sales");
     const user2 = await createTestUser(t, "u2@example.pl", "sales");
 
-    await user1.asUser.mutation(api.salesOpportunities.createSalesOpportunity, {
-      firstName: "Tomasz",
-      lastName: "Wójcik",
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert("notifications", {
+        userId: user1.userId,
+        type: "order_message",
+        title: "Powiadomienie 1",
+        message: "Treść",
+        read: false,
+        createdAt: now,
+      });
+      await ctx.db.insert("notifications", {
+        userId: user2.userId,
+        type: "order_message",
+        title: "Powiadomienie 2",
+        message: "Treść",
+        read: false,
+        createdAt: now,
+      });
     });
 
     const user1List = await user1.asUser.query(api.notifications.list, {});
