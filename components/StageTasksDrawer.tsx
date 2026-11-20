@@ -66,6 +66,7 @@ interface StageTasksDrawerProps {
   order: {
     _id: Id<"orders">;
     name: string;
+    customText?: string;
     clientId: Id<"clients">;
     clientName: string;
     investmentCity?: string;
@@ -180,21 +181,29 @@ export default function StageTasksDrawer({
       {order && stageKey && (
         <div className="flex flex-col h-full overflow-y-auto p-5 space-y-5">
           {/* Order Info Card */}
-          <div className="p-3.5 rounded-xl border bg-slate-50/70 border-slate-200/80 space-y-2.5">
-            <div className="flex items-start justify-between gap-2">
-              <div>
+          <div className="p-4 rounded-xl border bg-slate-50/80 border-slate-200/80 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 space-y-1">
                 <Link
                   href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
-                  className="text-sm font-bold hover:underline inline-flex items-center gap-1.5"
+                  className="text-[15px] font-bold leading-snug hover:underline inline-flex items-center gap-1.5 break-words"
                   style={{ color: "var(--text-strong)" }}
                 >
-                  {order.name}
-                  <ExternalLink size={12} className="opacity-60" />
+                  <span>{order.customText?.trim() || order.name}</span>
+                  <ExternalLink size={13} className="opacity-55 shrink-0" />
                 </Link>
-                <div className="text-xs text-slate-500 mt-0.5">
-                  {order.clientName}
-                  {order.investmentCity ? ` • ${order.investmentCity}` : ""}
-                  {order.installationTeamName ? ` • ${order.installationTeamName}` : ""}
+
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                  {order.customText?.trim() && (
+                    <span className="font-mono text-[11px] font-semibold text-slate-600 bg-white border border-slate-200/90 px-1.5 py-0.2 rounded">
+                      {order.name}
+                    </span>
+                  )}
+                  <span>
+                    {order.clientName}
+                    {order.investmentCity ? ` • ${order.investmentCity}` : ""}
+                    {order.installationTeamName ? ` • ${order.installationTeamName}` : ""}
+                  </span>
                 </div>
               </div>
 

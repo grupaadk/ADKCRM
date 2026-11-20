@@ -184,6 +184,7 @@ export const listForSchedule = query({
           _id: order._id,
           clientId: order.clientId,
           name: order.name ?? "Zlecenie",
+          customText: order.customText,
           clientName,
           investmentCity: order.investmentCity ?? client?.city ?? "",
           services: order.services ?? [],

@@ -87,6 +87,7 @@ const STAGE_BY_KEY = STAGES.reduce(
 interface ScheduleOrder {
   _id: Id<"orders">;
   name: string;
+  customText?: string;
   orderNumber?: string;
   status: string;
   statusLabel: string;
@@ -234,7 +235,7 @@ export default function ScheduleGantt() {
         if (isFullyScheduled) return false;
       }
       if (q) {
-        const hay = `${o.name} ${o.clientName} ${o.investmentCity}`.toLowerCase();
+        const hay = `${o.customText ?? ""} ${o.name} ${o.clientName} ${o.investmentCity}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -954,8 +955,11 @@ export default function ScheduleGantt() {
                                 href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
                                 className="text-xs font-bold hover:underline truncate inline-flex items-center gap-1"
                                 style={{ color: "var(--text-strong)" }}
+                                title={order.customText?.trim() || order.name}
                               >
-                                {order.name}
+                                <span className="truncate">
+                                  {order.customText?.trim() || order.name}
+                                </span>
                                 <ExternalLink size={10} className="opacity-50 shrink-0" />
                               </Link>
                               <span
@@ -973,6 +977,7 @@ export default function ScheduleGantt() {
                               className="text-[11px] truncate mt-0.5"
                               style={{ color: "var(--text-mute)" }}
                             >
+                              {order.customText?.trim() ? `${order.name} • ` : ""}
                               {order.clientName}
                               {order.investmentCity ? ` • ${order.investmentCity}` : ""}
                               {order.installationTeamName
@@ -1156,9 +1161,12 @@ export default function ScheduleGantt() {
           }}
         >
           <div className="font-bold">
-            {hoveredBar.order.name} • {hoveredBar.stage.label}
+            {hoveredBar.order.customText?.trim() || hoveredBar.order.name} • {hoveredBar.stage.label}
           </div>
-          <div className="text-[11px] opacity-85">{hoveredBar.order.clientName}</div>
+          <div className="text-[11px] opacity-85">
+            {hoveredBar.order.customText?.trim() ? `${hoveredBar.order.name} • ` : ""}
+            {hoveredBar.order.clientName}
+          </div>
           <div className="text-[11px] mt-1 font-mono">
             {formatPlDate(hoveredBar.start)} – {formatPlDate(hoveredBar.end)}
             {hoveredBar.end
