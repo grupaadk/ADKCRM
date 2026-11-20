@@ -45,12 +45,12 @@ export default function SideDrawer({
       {/* tło */}
       <div
         onClick={onClose}
-        className="absolute inset-0 bg-black/30 transition-opacity duration-200"
+        className="absolute inset-0 bg-black/30 backdrop-blur-[1px] transition-opacity duration-300 ease-out"
         style={{ opacity: open ? 1 : 0 }}
       />
       {/* panel */}
       <div
-        className="absolute right-0 top-0 flex h-full max-w-[92vw] flex-col bg-white shadow-2xl transition-transform duration-300 ease-out"
+        className="absolute right-0 top-0 flex h-full max-w-[92vw] flex-col bg-white shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform"
         style={{ width, transform: open ? "translateX(0)" : "translateX(100%)" }}
         role="dialog"
         aria-modal="true"

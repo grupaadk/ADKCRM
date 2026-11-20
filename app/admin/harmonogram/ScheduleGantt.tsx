@@ -131,23 +131,6 @@ function diffDays(a: number, b: number): number {
   return Math.round((b - a) / MS_PER_DAY);
 }
 
-function tsToDateInput(ts?: number | null): string {
-  if (!ts) return "";
-  const d = new Date(ts);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function dateInputToTs(str?: string): number | undefined {
-  if (!str) return undefined;
-  const [y, m, d] = str.split("-").map(Number);
-  if (!y || !m || !d) return undefined;
-  const date = new Date(y, m - 1, d, 0, 0, 0, 0);
-  return date.getTime();
-}
-
 function formatPlDate(ts?: number | null): string {
   if (!ts) return "—";
   return new Date(ts).toLocaleDateString("pl-PL", {
@@ -170,14 +153,11 @@ export default function ScheduleGantt() {
   const [windowStartTs, setWindowStartTs] = useState<number>(() =>
     addDays(normalizeDayStart(Date.now()), -14),
   );
-  const [editingTarget, setEditingTarget] = useState<{
-    order: ScheduleOrder;
-    focusStage?: StageKey;
-  } | null>(null);
   const [selectedStageTarget, setSelectedStageTarget] = useState<{
     order: ScheduleOrder;
     stageKey: StageKey;
   } | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [hoveredBar, setHoveredBar] = useState<{
     order: ScheduleOrder;
@@ -324,6 +304,7 @@ export default function ScheduleGantt() {
             order: clickedOrder,
             stageKey: curr.stageKey,
           });
+          setIsDrawerOpen(true);
         }
         return;
       }
@@ -539,7 +520,6 @@ export default function ScheduleGantt() {
           )
         }
         onMouseLeave={() => setHoveredBar(null)}
-        onDoubleClick={() => setEditingTarget({ order, focusStage: stage.key })}
         style={{
           left: leftPx,
           width: widthPx,
@@ -1018,6 +998,7 @@ export default function ScheduleGantt() {
                                           order,
                                           stageKey: st.key,
                                         });
+                                        setIsDrawerOpen(true);
                                       } else {
                                         void handleCreateStageBar(order, st.key);
                                       }
@@ -1150,243 +1131,13 @@ export default function ScheduleGantt() {
         </div>
       )}
 
-      {/* Stage Dates Edit Modal */}
-      {editingTarget && (
-        <StageDatesModal
-          order={editingTarget.order}
-          focusStage={editingTarget.focusStage}
-          onClose={() => setEditingTarget(null)}
-          onSave={async (patch) => {
-            await updateOrder({
-              orderId: editingTarget.order._id,
-              ...patch,
-            });
-            toast.success("Zapisano daty etapów");
-            setEditingTarget(null);
-          }}
-        />
-      )}
-
-      {/* Stage Tasks Slide-over Drawer */}
-      {selectedStageTarget && currentSelectedOrder && (
-        <StageTasksDrawer
-          open={Boolean(selectedStageTarget)}
-          onClose={() => setSelectedStageTarget(null)}
-          order={currentSelectedOrder}
-          stageKey={selectedStageTarget.stageKey}
-          onEditDates={() => {
-            setEditingTarget({
-              order: currentSelectedOrder,
-              focusStage: selectedStageTarget.stageKey,
-            });
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function StageDatesModal({
-  order,
-  focusStage,
-  onClose,
-  onSave,
-}: {
-  order: ScheduleOrder;
-  focusStage?: StageKey;
-  onClose: () => void;
-  onSave: (patch: {
-    completionStartDate: number | null;
-    completionEndDate: number | null;
-    productionStartDate: number | null;
-    productionEndDate: number | null;
-    installationPhaseStartDate: number | null;
-    installationPhaseEndDate: number | null;
-  }) => Promise<void>;
-}) {
-  const [values, setValues] = useState<Record<string, string>>({
-    completionStartDate: tsToDateInput(order.completionStartDate),
-    completionEndDate: tsToDateInput(order.completionEndDate),
-    productionStartDate: tsToDateInput(order.productionStartDate),
-    productionEndDate: tsToDateInput(order.productionEndDate),
-    installationPhaseStartDate: tsToDateInput(order.installationPhaseStartDate),
-    installationPhaseEndDate: tsToDateInput(order.installationPhaseEndDate),
-  });
-  const [saving, setSaving] = useState(false);
-
-  const applyPreset = (
-    startField: string,
-    endField: string,
-    daysCount: number,
-  ) => {
-    const baseTs = dateInputToTs(values[startField]) ?? normalizeDayStart(Date.now());
-    const endTs = addDays(baseTs, daysCount - 1);
-    setValues((prev) => ({
-      ...prev,
-      [startField]: tsToDateInput(baseTs),
-      [endField]: tsToDateInput(endTs),
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    for (const stage of STAGES) {
-      const s = dateInputToTs(values[stage.startField]);
-      const end = dateInputToTs(values[stage.endField]);
-      if (s !== undefined && end !== undefined && end < s) {
-        toast.error(`${stage.label}: data końca nie może być wcześniejsza niż data początku.`);
-        return;
-      }
-    }
-    setSaving(true);
-    try {
-      await onSave({
-        completionStartDate: dateInputToTs(values.completionStartDate) ?? null,
-        completionEndDate: dateInputToTs(values.completionEndDate) ?? null,
-        productionStartDate: dateInputToTs(values.productionStartDate) ?? null,
-        productionEndDate: dateInputToTs(values.productionEndDate) ?? null,
-        installationPhaseStartDate: dateInputToTs(values.installationPhaseStartDate) ?? null,
-        installationPhaseEndDate: dateInputToTs(values.installationPhaseEndDate) ?? null,
-      });
-    } catch (err) {
-      console.error(err);
-      toast.error("Błąd zapisu dat.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
-    >
-      <form
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={handleSubmit}
-        className="w-full max-w-lg rounded-xl border p-5 shadow-xl space-y-4"
-        style={{ background: "var(--card, #fff)", borderColor: "var(--line, #e5e7eb)" }}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold" style={{ color: "var(--text-strong)" }}>
-              Daty etapów — {order.name}
-            </h2>
-            <p className="text-xs" style={{ color: "var(--text-mute)" }}>
-              {order.clientName}
-              {order.investmentCity ? ` • ${order.investmentCity}` : ""}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 rounded-md hover:bg-slate-100 cursor-pointer"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {STAGES.map((stage) => {
-            const isFocused = focusStage === stage.key;
-            return (
-              <div
-                key={stage.key}
-                className="rounded-lg border p-3 space-y-2"
-                style={{
-                  borderColor: isFocused ? stage.color : "var(--line)",
-                  background: isFocused ? stage.bg : "var(--background, #f8fafc)",
-                }}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full"
-                      style={{ background: stage.color }}
-                    />
-                    <span className="text-xs font-bold" style={{ color: "var(--text-strong)" }}>
-                      {stage.label}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {[3, 7, 14].map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => applyPreset(stage.startField, stage.endField, d)}
-                        className="px-1.5 py-0.5 text-[10px] font-semibold rounded border hover:bg-white cursor-pointer"
-                        style={{ borderColor: "var(--line)", color: "var(--text-mute)" }}
-                      >
-                        +{d}d
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setValues((prev) => ({
-                          ...prev,
-                          [stage.startField]: "",
-                          [stage.endField]: "",
-                        }))
-                      }
-                      className="px-1.5 py-0.5 text-[10px] font-semibold rounded border hover:bg-white cursor-pointer"
-                      style={{ borderColor: "var(--line)", color: "#dc2626" }}
-                    >
-                      Wyczyść
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="text-[11px] font-medium" style={{ color: "var(--text-mute)" }}>
-                    Początek
-                    <input
-                      type="date"
-                      autoFocus={focusStage === stage.key}
-                      value={values[stage.startField]}
-                      onChange={(e) =>
-                        setValues((prev) => ({ ...prev, [stage.startField]: e.target.value }))
-                      }
-                      className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-xs bg-white"
-                      style={{ borderColor: "var(--line)", color: "var(--text-strong)" }}
-                    />
-                  </label>
-                  <label className="text-[11px] font-medium" style={{ color: "var(--text-mute)" }}>
-                    Koniec
-                    <input
-                      type="date"
-                      value={values[stage.endField]}
-                      onChange={(e) =>
-                        setValues((prev) => ({ ...prev, [stage.endField]: e.target.value }))
-                      }
-                      className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-xs bg-white"
-                      style={{ borderColor: "var(--line)", color: "var(--text-strong)" }}
-                    />
-                  </label>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 text-xs font-semibold rounded-lg border cursor-pointer"
-            style={{ borderColor: "var(--line)", color: "var(--text-strong)" }}
-          >
-            Anuluj
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="btn primary px-4 py-1.5 text-xs font-semibold rounded-lg cursor-pointer"
-          >
-            {saving ? "Zapisywanie…" : "Zapisz daty"}
-          </button>
-        </div>
-      </form>
+      {/* Stage Tasks Slide-over Drawer (always mounted for smooth slide animation) */}
+      <StageTasksDrawer
+        open={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        order={currentSelectedOrder}
+        stageKey={selectedStageTarget?.stageKey ?? null}
+      />
     </div>
   );
 }

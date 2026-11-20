@@ -79,9 +79,8 @@ interface StageTasksDrawerProps {
     productionEndDate?: number;
     installationPhaseStartDate?: number;
     installationPhaseEndDate?: number;
-  };
-  stageKey: StageKey;
-  onEditDates?: () => void;
+  } | null;
+  stageKey: StageKey | null;
 }
 
 export default function StageTasksDrawer({
@@ -89,10 +88,12 @@ export default function StageTasksDrawer({
   onClose,
   order,
   stageKey,
-  onEditDates,
 }: StageTasksDrawerProps) {
-  const stage = STAGE_META[stageKey];
-  const allTasks = useQuery(api.orderTasks.listByOrder, { orderId: order._id });
+  const stage = stageKey ? STAGE_META[stageKey] : STAGE_META.kitting;
+  const allTasks = useQuery(
+    api.orderTasks.listByOrder,
+    order ? { orderId: order._id } : "skip",
+  );
   const taskTemplates = useQuery(api.taskTemplates.list) ?? [];
 
   const createTask = useMutation(api.orderTasks.create);
@@ -107,25 +108,33 @@ export default function StageTasksDrawer({
   const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
 
   // Filtruj zadania dla tego etapu (lub zadania ogólne, jeśli to aktywny etap zlecenia)
-  const stageTasks = (allTasks ?? []).filter((t) => {
-    if (t.stageKey) return t.stageKey === stageKey;
-    // Jeśli zadanie nie ma przypisanego etapu, wyświetl je w aktywnym etapie zlecenia
-    return stageKey === order.stageKey;
-  });
+  const stageTasks =
+    order && stageKey
+      ? (allTasks ?? []).filter((t) => {
+          if (t.stageKey) return t.stageKey === stageKey;
+          // Jeśli zadanie nie ma przypisanego etapu, wyświetl je w aktywnym etapie zlecenia
+          return stageKey === order.stageKey;
+        })
+      : [];
 
   const totalCount = stageTasks.length;
   const doneCount = stageTasks.filter((t) => t.status === "done").length;
   const progressPercent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
 
   // Daty etapu na osi czasu
-  const rawStart = order[stage.startField as keyof typeof order] as number | undefined;
-  const rawEnd = order[stage.endField as keyof typeof order] as number | undefined;
+  const rawStart = order
+    ? (order[stage.startField as keyof typeof order] as number | undefined)
+    : undefined;
+  const rawEnd = order
+    ? (order[stage.endField as keyof typeof order] as number | undefined)
+    : undefined;
   const hasDates = Boolean(rawStart && rawEnd);
   const spanDays = hasDates ? Math.max(1, diffDays(rawStart!, rawEnd!) + 1) : null;
-  const isCurrentOrderStage = order.stageKey === stageKey;
+  const isCurrentOrderStage = Boolean(order && stageKey && order.stageKey === stageKey);
 
   const handleAddTask = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (!order || !stageKey) return;
     const title = newTaskTitle.trim();
     if (!title || adding) return;
     setAdding(true);
@@ -170,6 +179,7 @@ export default function StageTasksDrawer({
   };
 
   const handleApplyDefaultChecklist = async () => {
+    if (!order || !stageKey) return;
     setApplyingDefault(true);
     try {
       await applyDefaultChecklist({
@@ -186,6 +196,7 @@ export default function StageTasksDrawer({
   };
 
   const handleApplyCustomTemplate = async (templateId: Id<"taskTemplates">) => {
+    if (!order) return;
     setTemplateDropdownOpen(false);
     try {
       await applyTemplate({ templateId, orderId: order._id });
@@ -198,24 +209,27 @@ export default function StageTasksDrawer({
 
   return (
     <SideDrawer
-      open={open}
+      open={open && Boolean(order && stageKey)}
       onClose={onClose}
       width={480}
       title={
-        <div className="flex items-center gap-2">
-          <span
-            className="w-2.5 h-2.5 rounded-full"
-            style={{ background: stage.color }}
-          />
-          <span>Zadania etapu: {stage.label}</span>
-          {isCurrentOrderStage && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 tracking-wide uppercase">
-              W trakcie
-            </span>
-          )}
-        </div>
+        order && stageKey ? (
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-full"
+              style={{ background: stage.color }}
+            />
+            <span>Zadania etapu: {stage.label}</span>
+            {isCurrentOrderStage && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 tracking-wide uppercase">
+                W trakcie
+              </span>
+            )}
+          </div>
+        ) : null
       }
     >
+      {order && stageKey && (
       <div className="flex flex-col h-full overflow-y-auto p-5 space-y-5">
         {/* Order Info Card */}
         <div className="p-3.5 rounded-xl border bg-slate-50/70 border-slate-200/80 space-y-2.5">
@@ -260,16 +274,6 @@ export default function StageTasksDrawer({
                 <span className="italic text-slate-400">Brak ustalonego terminu</span>
               )}
             </div>
-
-            {onEditDates && (
-              <button
-                type="button"
-                onClick={onEditDates}
-                className="text-[11px] font-semibold text-sky-600 hover:text-sky-800 hover:underline cursor-pointer"
-              >
-                {hasDates ? "Zmień termin" : "+ Ustaw termin"}
-              </button>
-            )}
           </div>
         </div>
 
@@ -436,6 +440,7 @@ export default function StageTasksDrawer({
           )}
         </div>
       </div>
+      )}
     </SideDrawer>
   );
 }
