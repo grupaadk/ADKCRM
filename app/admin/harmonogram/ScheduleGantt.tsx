@@ -12,6 +12,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronsUpDown,
+  CornerDownRight,
   ExternalLink,
   Search,
   SlidersHorizontal,
@@ -324,16 +326,28 @@ export default function ScheduleGantt() {
     };
   }, [isDragging, dayWidth, updateOrder]);
 
-  const toggleStageFilter = (key: StageKey) => {
-    setSelectedStages((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        if (next.size > 1) next.delete(key);
+  const handleStagePillClick = (key: StageKey) => {
+    if (selectedStages.size === STAGES.length) {
+      // Jeśli zaznaczone były wszystkie, kliknięcie filtruje tylko do tego wybranego
+      setSelectedStages(new Set([key]));
+    } else if (selectedStages.has(key)) {
+      if (selectedStages.size === 1) {
+        // Kliknięcie jedynego aktywnego przywraca wszystkie
+        setSelectedStages(new Set(STAGES.map((s) => s.key)));
       } else {
-        next.add(key);
+        setSelectedStages((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
       }
-      return next;
-    });
+    } else {
+      setSelectedStages((prev) => new Set(prev).add(key));
+    }
+  };
+
+  const selectAllStages = () => {
+    setSelectedStages(new Set(STAGES.map((s) => s.key)));
   };
 
   const toggleExpandedOrder = (id: string) => {
@@ -345,8 +359,194 @@ export default function ScheduleGantt() {
     });
   };
 
+  const isAllExpanded =
+    filteredOrders.length > 0 &&
+    filteredOrders.every((o) => expandedOrderIds.has(o._id));
+
+  const toggleAllExpanded = () => {
+    if (isAllExpanded || expandedOrderIds.size > 0) {
+      setExpandedOrderIds(new Set());
+    } else {
+      setExpandedOrderIds(new Set(filteredOrders.map((o) => o._id)));
+    }
+  };
+
   const todayOffsetDays = diffDays(windowStartTs, todayTs);
   const timelineWidth = totalDays * dayWidth;
+
+  const renderStageBar = (
+    order: ScheduleOrder,
+    stage: (typeof STAGES)[number],
+    trackHeight: number,
+  ) => {
+    const isDraggingThis =
+      dragState?.orderId === order._id && dragState.stageKey === stage.key;
+
+    const rawStart = isDraggingThis
+      ? dragState.previewStart
+      : order[stage.startField];
+    const rawEnd = isDraggingThis
+      ? dragState.previewEnd
+      : order[stage.endField];
+
+    if (!rawStart && !rawEnd) {
+      return null;
+    }
+
+    const startNorm = normalizeDayStart(rawStart ?? rawEnd!);
+    const hasExplicitEnd = Boolean(rawEnd);
+    const endNorm = normalizeDayStart(rawEnd ?? startNorm);
+    const spanDays = Math.max(1, diffDays(startNorm, endNorm) + 1);
+
+    const leftPx = diffDays(windowStartTs, startNorm) * dayWidth;
+    const widthPx = Math.max(dayWidth, spanDays * dayWidth);
+
+    if (leftPx + widthPx < 0 || leftPx > timelineWidth) {
+      return null;
+    }
+
+    const barHeight = trackHeight <= 40 ? 24 : 30;
+    const topOffset = Math.max(3, Math.floor((trackHeight - barHeight) / 2));
+
+    return (
+      <div
+        key={stage.key}
+        onPointerDown={(e) => {
+          if ((e.target as HTMLElement).dataset.resizeHandle) return;
+          e.preventDefault();
+          setDragState({
+            orderId: order._id,
+            stageKey: stage.key,
+            mode: "move",
+            startX: e.clientX,
+            origStart: startNorm,
+            origEnd: endNorm,
+            previewStart: startNorm,
+            previewEnd: endNorm,
+          });
+        }}
+        onMouseEnter={(e) =>
+          setHoveredBar({
+            order,
+            stage,
+            start: startNorm,
+            end: hasExplicitEnd ? endNorm : undefined,
+            x: e.clientX,
+            y: e.clientY,
+          })
+        }
+        onMouseMove={(e) =>
+          setHoveredBar((prev) =>
+            prev ? { ...prev, x: e.clientX, y: e.clientY } : null,
+          )
+        }
+        onMouseLeave={() => setHoveredBar(null)}
+        onDoubleClick={() => setEditingTarget({ order, focusStage: stage.key })}
+        style={{
+          left: leftPx,
+          width: widthPx,
+          top: topOffset,
+          height: barHeight,
+          background: stage.color,
+          borderStyle: hasExplicitEnd ? "solid" : "dashed",
+          borderWidth: hasExplicitEnd ? 0 : 1.5,
+          borderColor: "#fff",
+          opacity: isDraggingThis ? 0.85 : 1,
+        }}
+        className="group absolute z-10 rounded-md text-white text-[11px] font-semibold flex items-center px-2 shadow-sm cursor-grab active:cursor-grabbing select-none overflow-hidden"
+      >
+        {/* Left resize handle */}
+        <div
+          data-resize-handle="left"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            setDragState({
+              orderId: order._id,
+              stageKey: stage.key,
+              mode: "resize-start",
+              startX: e.clientX,
+              origStart: startNorm,
+              origEnd: endNorm,
+              previewStart: startNorm,
+              previewEnd: endNorm,
+            });
+          }}
+          className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-white/30"
+        />
+
+        <span className="truncate pointer-events-none">
+          {hasExplicitEnd
+            ? `${stage.label} (${spanDays}d)`
+            : `${stage.label} • ustaw koniec`}
+        </span>
+
+        {/* Right resize handle */}
+        <div
+          data-resize-handle="right"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            setDragState({
+              orderId: order._id,
+              stageKey: stage.key,
+              mode: "resize-end",
+              startX: e.clientX,
+              origStart: startNorm,
+              origEnd: endNorm,
+              previewStart: startNorm,
+              previewEnd: endNorm,
+            });
+          }}
+          className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-white/30"
+        />
+      </div>
+    );
+  };
+
+  const renderOrderSummarySpan = (order: ScheduleOrder) => {
+    let minStart: number | null = null;
+    let maxEnd: number | null = null;
+
+    for (const st of STAGES) {
+      const s = order[st.startField];
+      const e = order[st.endField];
+      if (s) {
+        const sNorm = normalizeDayStart(s);
+        minStart = minStart === null ? sNorm : Math.min(minStart, sNorm);
+      }
+      if (e) {
+        const eNorm = normalizeDayStart(e);
+        maxEnd = maxEnd === null ? eNorm : Math.max(maxEnd, eNorm);
+      }
+    }
+
+    if (minStart === null && maxEnd === null) return null;
+    const startTs = minStart ?? maxEnd!;
+    const endTs = maxEnd ?? startTs;
+    const spanDays = Math.max(1, diffDays(startTs, endTs) + 1);
+    const leftPx = diffDays(windowStartTs, startTs) * dayWidth;
+    const widthPx = Math.max(dayWidth, spanDays * dayWidth);
+
+    if (leftPx + widthPx < 0 || leftPx > timelineWidth) return null;
+
+    return (
+      <div
+        style={{
+          left: leftPx,
+          width: widthPx,
+          top: 13,
+          height: 26,
+          background: "rgba(100, 116, 139, 0.14)",
+          borderColor: "rgba(100, 116, 139, 0.35)",
+        }}
+        className="absolute z-10 rounded-md border text-slate-700 text-[10px] font-bold flex items-center px-2 select-none pointer-events-none"
+        title={`Łączny harmonogram zlecenia: ${spanDays} dni`}
+      >
+        <span className="truncate text-slate-600 font-medium">Całość ({spanDays} dni)</span>
+      </div>
+    );
+  };
 
   return (
     <div
@@ -374,13 +574,35 @@ export default function ScheduleGantt() {
 
           {/* Stage pills */}
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={selectAllStages}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer"
+              style={{
+                background:
+                  selectedStages.size === STAGES.length
+                    ? "var(--text-strong, #0f172a)"
+                    : "transparent",
+                color:
+                  selectedStages.size === STAGES.length
+                    ? "#ffffff"
+                    : "var(--text-mute)",
+                border: `1.5px solid ${
+                  selectedStages.size === STAGES.length
+                    ? "var(--text-strong, #0f172a)"
+                    : "var(--line)"
+                }`,
+              }}
+            >
+              Wszystkie
+            </button>
             {STAGES.map((stage) => {
               const active = selectedStages.has(stage.key);
               return (
                 <button
                   key={stage.key}
                   type="button"
-                  onClick={() => toggleStageFilter(stage.key)}
+                  onClick={() => handleStagePillClick(stage.key)}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer"
                   style={{
                     background: active ? stage.bg : "transparent",
@@ -561,14 +783,31 @@ export default function ScheduleGantt() {
               >
                 {/* Sticky top-left corner */}
                 <div
-                  className="sticky left-0 z-30 shrink-0 w-[320px] px-4 py-2 border-r flex items-center justify-between text-[11px] font-bold uppercase tracking-wider"
+                  className="sticky left-0 z-30 shrink-0 w-[320px] px-3 py-2 border-r flex items-center justify-between text-[11px] font-bold uppercase tracking-wider"
                   style={{
                     borderColor: "var(--line, #e5e7eb)",
                     background: "var(--panel, #fff)",
                     color: "var(--text-mute)",
                   }}
                 >
-                  <span>Zlecenie / Klient</span>
+                  <div className="flex items-center gap-1.5 normal-case tracking-normal">
+                    <button
+                      type="button"
+                      onClick={toggleAllExpanded}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 hover:text-slate-900 px-2 py-0.5 rounded border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
+                      title={
+                        isAllExpanded
+                          ? "Zwiń wszystkie etapy do jednego wiersza"
+                          : "Rozwiń etapy dla wszystkich zleceń"
+                      }
+                    >
+                      <ChevronsUpDown size={12} className="text-slate-500" />
+                      {isAllExpanded ? "Zwiń etapy" : "Rozwiń etapy"}
+                    </button>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Zlecenie
+                    </span>
+                  </div>
                   <span>Etapy</span>
                 </div>
 
@@ -636,7 +875,6 @@ export default function ScheduleGantt() {
                 {filteredOrders.map((order) => {
                   const isExpanded = expandedOrderIds.has(order._id);
                   const activeStageMeta = STAGE_BY_KEY[order.stageKey];
-                  const subRows = isExpanded ? STAGES : [null];
 
                   return (
                     <div
@@ -644,287 +882,253 @@ export default function ScheduleGantt() {
                       className="border-b"
                       style={{ borderColor: "var(--line, #e5e7eb)" }}
                     >
-                      {subRows.map((subStage) => {
-                        const stagesToRender = subStage ? [subStage] : STAGES;
-                        const rowHeight = subStage ? 36 : 52;
-
-                        return (
-                          <div
-                            key={subStage ? subStage.key : "compact"}
-                            className="flex"
-                            style={{ minHeight: rowHeight }}
-                          >
-                            {/* Left sticky cell */}
-                            <div
-                              className="sticky left-0 z-10 shrink-0 w-[320px] px-3 py-1.5 border-r flex items-center justify-between gap-2"
-                              style={{
-                                borderColor: "var(--line, #e5e7eb)",
-                                background: subStage ? "#fafbfc" : "var(--card, #fff)",
-                              }}
+                      {/* Main parent row */}
+                      <div
+                        className="flex transition-colors"
+                        style={{
+                          minHeight: 52,
+                          background: isExpanded
+                            ? "rgba(248, 250, 252, 0.95)"
+                            : "var(--card, #fff)",
+                        }}
+                      >
+                        {/* Left sticky cell */}
+                        <div
+                          className="sticky left-0 z-10 shrink-0 w-[320px] px-3 py-1.5 border-r flex items-center justify-between gap-2"
+                          style={{
+                            borderColor: "var(--line, #e5e7eb)",
+                            background: isExpanded
+                              ? "rgba(248, 250, 252, 0.95)"
+                              : "var(--card, #fff)",
+                          }}
+                        >
+                          <div className="flex items-start gap-1.5 min-w-0 flex-1">
+                            <button
+                              type="button"
+                              onClick={() => toggleExpandedOrder(order._id)}
+                              className="mt-0.5 p-1 rounded hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 cursor-pointer shrink-0 transition-colors"
+                              title={
+                                isExpanded
+                                  ? "Zwiń etapy tego zlecenia do jednego wiersza"
+                                  : "Rozwiń każdy etap w osobnym wierszu"
+                              }
                             >
-                              {!subStage ? (
-                                <>
-                                  <div className="flex items-start gap-1.5 min-w-0 flex-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleExpandedOrder(order._id)}
-                                      className="mt-0.5 p-0.5 rounded hover:bg-slate-100 cursor-pointer shrink-0"
-                                      title={isExpanded ? "Zwiń etapy" : "Rozwiń 3 etapy"}
-                                    >
-                                      <ChevronDown
-                                        size={13}
-                                        className={`transition-transform ${isExpanded ? "" : "-rotate-90"}`}
-                                      />
-                                    </button>
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-1.5">
-                                        <Link
-                                          href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
-                                          className="text-xs font-bold hover:underline truncate inline-flex items-center gap-1"
-                                          style={{ color: "var(--text-strong)" }}
-                                        >
-                                          {order.name}
-                                          <ExternalLink size={10} className="opacity-50 shrink-0" />
-                                        </Link>
-                                        <span
-                                          className="text-[10px] font-semibold px-1.5 py-0.2 rounded-full shrink-0"
-                                          style={{
-                                            background: activeStageMeta.bg,
-                                            color: activeStageMeta.color,
-                                            border: `1px solid ${activeStageMeta.border}`,
-                                          }}
-                                        >
-                                          {order.statusLabel}
-                                        </span>
-                                      </div>
-                                      <div
-                                        className="text-[11px] truncate"
-                                        style={{ color: "var(--text-mute)" }}
-                                      >
-                                        {order.clientName}
-                                        {order.investmentCity ? ` • ${order.investmentCity}` : ""}
-                                        {order.installationTeamName
-                                          ? ` • ${order.installationTeamName}`
-                                          : ""}
-                                      </div>
-                                    </div>
-                                  </div>
+                              <ChevronDown
+                                size={14}
+                                className={`transition-transform duration-150 ${isExpanded ? "" : "-rotate-90"}`}
+                              />
+                            </button>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <Link
+                                  href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
+                                  className="text-xs font-bold hover:underline truncate inline-flex items-center gap-1"
+                                  style={{ color: "var(--text-strong)" }}
+                                >
+                                  {order.name}
+                                  <ExternalLink size={10} className="opacity-50 shrink-0" />
+                                </Link>
+                                <span
+                                  className="text-[10px] font-semibold px-1.5 py-0.2 rounded-full shrink-0"
+                                  style={{
+                                    background: activeStageMeta.bg,
+                                    color: activeStageMeta.color,
+                                    border: `1px solid ${activeStageMeta.border}`,
+                                  }}
+                                >
+                                  {order.statusLabel}
+                                </span>
+                              </div>
+                              <div
+                                className="text-[11px] truncate"
+                                style={{ color: "var(--text-mute)" }}
+                              >
+                                {order.clientName}
+                                {order.investmentCity ? ` • ${order.investmentCity}` : ""}
+                                {order.installationTeamName
+                                  ? ` • ${order.installationTeamName}`
+                                  : ""}
+                              </div>
+                            </div>
+                          </div>
 
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    {STAGES.map((st) => {
-                                      const hasStart = Boolean(order[st.startField]);
-                                      const hasEnd = Boolean(order[st.endField]);
-                                      const isPlanned = hasStart && hasEnd;
-                                      const shortLetter = st.key === "kitting" ? "K" : st.key === "production" ? "P" : "M";
-                                      const tooltip = isPlanned
-                                        ? `${st.label}: ${formatPlDate(order[st.startField])} – ${formatPlDate(order[st.endField])}`
-                                        : `Zaplanuj ${st.label}`;
+                          <div className="flex items-center gap-1 shrink-0">
+                            {STAGES.map((st) => {
+                              const hasStart = Boolean(order[st.startField]);
+                              const hasEnd = Boolean(order[st.endField]);
+                              const isPlanned = hasStart && hasEnd;
+                              const shortLetter =
+                                st.key === "kitting" ? "K" : st.key === "production" ? "P" : "M";
+                              const tooltip = isPlanned
+                                ? `${st.label}: ${formatPlDate(order[st.startField])} – ${formatPlDate(order[st.endField])}`
+                                : `Zaplanuj ${st.label}`;
 
-                                      return (
-                                        <button
-                                          key={st.key}
-                                          type="button"
-                                          title={tooltip}
-                                          onClick={() =>
-                                            setEditingTarget({ order, focusStage: st.key })
-                                          }
-                                          className="h-6 min-w-[24px] px-1.5 rounded text-[10px] font-bold transition-opacity hover:opacity-85 cursor-pointer inline-flex items-center justify-center"
-                                          style={{
-                                            background: isPlanned ? st.bg : "transparent",
-                                            color: st.color,
-                                            border: `1px ${isPlanned ? "solid" : "dashed"} ${st.border}`,
-                                          }}
-                                        >
-                                          {isPlanned ? shortLetter : `+${shortLetter}`}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </>
-                              ) : (
-                                <>
-                                  <div className="pl-6 flex items-center gap-2 text-[11px] min-w-0">
+                              return (
+                                <button
+                                  key={st.key}
+                                  type="button"
+                                  title={tooltip}
+                                  onClick={() =>
+                                    setEditingTarget({ order, focusStage: st.key })
+                                  }
+                                  className="h-6 min-w-[24px] px-1.5 rounded text-[10px] font-bold transition-opacity hover:opacity-85 cursor-pointer inline-flex items-center justify-center"
+                                  style={{
+                                    background: isPlanned ? st.bg : "transparent",
+                                    color: st.color,
+                                    border: `1px ${isPlanned ? "solid" : "dashed"} ${st.border}`,
+                                  }}
+                                >
+                                  {isPlanned ? shortLetter : `+${shortLetter}`}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Right timeline cell */}
+                        <div
+                          style={{
+                            width: timelineWidth,
+                            height: 52,
+                            background: isExpanded
+                              ? "rgba(248, 250, 252, 0.4)"
+                              : "transparent",
+                          }}
+                          className="relative shrink-0"
+                        >
+                          {/* Day gridlines */}
+                          <div className="absolute inset-0 flex pointer-events-none">
+                            {days.map((dTs) => {
+                              const dow = new Date(dTs).getDay();
+                              const isWeekend = dow === 0 || dow === 6;
+                              return (
+                                <div
+                                  key={dTs}
+                                  style={{
+                                    width: dayWidth,
+                                    borderColor: "rgba(226, 232, 240, 0.7)",
+                                    background: isWeekend
+                                      ? "rgba(148, 163, 184, 0.06)"
+                                      : "transparent",
+                                  }}
+                                  className="h-full border-r shrink-0"
+                                />
+                              );
+                            })}
+                          </div>
+
+                          {/* When collapsed: render all planned stages directly on this track */}
+                          {!isExpanded &&
+                            STAGES.map((stage) => renderStageBar(order, stage, 52))}
+
+                          {/* When expanded: render a summary span of the overall order */}
+                          {isExpanded && renderOrderSummarySpan(order)}
+                        </div>
+                      </div>
+
+                      {/* Expanded child stage rows */}
+                      {isExpanded && (
+                        <div className="bg-slate-50/70 border-t border-slate-200/60 divide-y divide-slate-100">
+                          {STAGES.map((stage) => {
+                            const hasStart = Boolean(order[stage.startField]);
+                            const hasEnd = Boolean(order[stage.endField]);
+                            const isPlanned = hasStart && hasEnd;
+
+                            return (
+                              <div
+                                key={stage.key}
+                                className="flex"
+                                style={{ minHeight: 36 }}
+                              >
+                                {/* Left cell for sub-stage */}
+                                <div
+                                  className="sticky left-0 z-10 shrink-0 w-[320px] pl-7 pr-3 py-1.5 border-r flex items-center justify-between gap-2"
+                                  style={{
+                                    borderColor: "var(--line, #e5e7eb)",
+                                    background: "#f8fafc",
+                                  }}
+                                >
+                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                    <CornerDownRight
+                                      size={13}
+                                      className="text-slate-400 shrink-0"
+                                    />
                                     <span
                                       className="w-2 h-2 rounded-full shrink-0"
-                                      style={{ background: subStage.color }}
+                                      style={{ background: stage.color }}
                                     />
-                                    <span className="font-medium truncate" style={{ color: "var(--text)" }}>
-                                      {subStage.label}
+                                    <span
+                                      className="text-xs font-medium truncate"
+                                      style={{ color: "var(--text-strong)" }}
+                                    >
+                                      {stage.label}
                                     </span>
+                                    {isPlanned ? (
+                                      <span className="text-[10px] text-slate-500 font-normal truncate ml-1">
+                                        ({formatPlDate(order[stage.startField])} –{" "}
+                                        {formatPlDate(order[stage.endField])})
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400 font-normal italic ml-1">
+                                        brak terminu
+                                      </span>
+                                    )}
                                   </div>
+
                                   <button
                                     type="button"
                                     onClick={() =>
-                                      setEditingTarget({ order, focusStage: subStage.key })
+                                      setEditingTarget({ order, focusStage: stage.key })
                                     }
-                                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded hover:bg-slate-100 cursor-pointer shrink-0"
-                                    style={{ color: subStage.color }}
-                                  >
-                                    {order[subStage.startField] && order[subStage.endField]
-                                      ? "Zmień"
-                                      : "+ Zaplanuj"}
-                                  </button>
-                                </>
-                              )}
-                            </div>
-
-                            {/* Right timeline cell */}
-                            <div
-                              style={{
-                                width: timelineWidth,
-                                height: rowHeight,
-                                background: subStage ? "#fafbfc" : "var(--card, #fff)",
-                              }}
-                              className="relative shrink-0"
-                            >
-                              {/* Day gridlines */}
-                              <div className="absolute inset-0 flex pointer-events-none">
-                                {days.map((dTs) => {
-                                  const dow = new Date(dTs).getDay();
-                                  const isWeekend = dow === 0 || dow === 6;
-                                  return (
-                                    <div
-                                      key={dTs}
-                                      style={{
-                                        width: dayWidth,
-                                        borderColor: "rgba(226, 232, 240, 0.7)",
-                                        background: isWeekend
-                                          ? "rgba(148, 163, 184, 0.06)"
-                                          : "transparent",
-                                      }}
-                                      className="h-full border-r shrink-0"
-                                    />
-                                  );
-                                })}
-                              </div>
-
-                              {/* Bars */}
-                              {stagesToRender.map((stage) => {
-                                const isDraggingThis =
-                                  dragState?.orderId === order._id &&
-                                  dragState.stageKey === stage.key;
-
-                                const rawStart = isDraggingThis
-                                  ? dragState.previewStart
-                                  : order[stage.startField];
-                                const rawEnd = isDraggingThis
-                                  ? dragState.previewEnd
-                                  : order[stage.endField];
-
-                                if (!rawStart && !rawEnd) {
-                                  return null;
-                                }
-
-                                const startNorm = normalizeDayStart(rawStart ?? rawEnd!);
-                                const hasExplicitEnd = Boolean(rawEnd);
-                                const endNorm = normalizeDayStart(rawEnd ?? startNorm);
-                                const spanDays = Math.max(1, diffDays(startNorm, endNorm) + 1);
-
-                                const leftPx = diffDays(windowStartTs, startNorm) * dayWidth;
-                                const widthPx = Math.max(dayWidth, spanDays * dayWidth);
-
-                                if (leftPx + widthPx < 0 || leftPx > timelineWidth) {
-                                  return null;
-                                }
-
-                                return (
-                                  <div
-                                    key={stage.key}
-                                    onPointerDown={(e) => {
-                                      if ((e.target as HTMLElement).dataset.resizeHandle) return;
-                                      e.preventDefault();
-                                      setDragState({
-                                        orderId: order._id,
-                                        stageKey: stage.key,
-                                        mode: "move",
-                                        startX: e.clientX,
-                                        origStart: startNorm,
-                                        origEnd: endNorm,
-                                        previewStart: startNorm,
-                                        previewEnd: endNorm,
-                                      });
-                                    }}
-                                    onMouseEnter={(e) =>
-                                      setHoveredBar({
-                                        order,
-                                        stage,
-                                        start: startNorm,
-                                        end: hasExplicitEnd ? endNorm : undefined,
-                                        x: e.clientX,
-                                        y: e.clientY,
-                                      })
-                                    }
-                                    onMouseMove={(e) =>
-                                      setHoveredBar((prev) =>
-                                        prev ? { ...prev, x: e.clientX, y: e.clientY } : null,
-                                      )
-                                    }
-                                    onMouseLeave={() => setHoveredBar(null)}
+                                    className="text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors cursor-pointer shrink-0 hover:opacity-90"
                                     style={{
-                                      left: leftPx,
-                                      width: widthPx,
-                                      top: subStage ? 6 : 11,
-                                      height: subStage ? 24 : 30,
-                                      background: stage.color,
-                                      borderStyle: hasExplicitEnd ? "solid" : "dashed",
-                                      borderWidth: hasExplicitEnd ? 0 : 1.5,
-                                      borderColor: "#fff",
-                                      opacity: isDraggingThis ? 0.85 : 1,
+                                      borderColor: stage.border,
+                                      color: stage.color,
+                                      background: isPlanned ? stage.bg : "#ffffff",
                                     }}
-                                    className="group absolute z-10 rounded-md text-white text-[11px] font-semibold flex items-center px-2 shadow-sm cursor-grab active:cursor-grabbing select-none overflow-hidden"
                                   >
-                                    {/* Left resize handle */}
-                                    <div
-                                      data-resize-handle="left"
-                                      onPointerDown={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        setDragState({
-                                          orderId: order._id,
-                                          stageKey: stage.key,
-                                          mode: "resize-start",
-                                          startX: e.clientX,
-                                          origStart: startNorm,
-                                          origEnd: endNorm,
-                                          previewStart: startNorm,
-                                          previewEnd: endNorm,
-                                        });
-                                      }}
-                                      className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-white/30"
-                                    />
+                                    {isPlanned ? "Zmień" : "+ Zaplanuj"}
+                                  </button>
+                                </div>
 
-                                    <span className="truncate pointer-events-none">
-                                      {hasExplicitEnd
-                                        ? `${stage.label} (${spanDays}d)`
-                                        : `${stage.label} • ustaw koniec`}
-                                    </span>
-
-                                    {/* Right resize handle */}
-                                    <div
-                                      data-resize-handle="right"
-                                      onPointerDown={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        setDragState({
-                                          orderId: order._id,
-                                          stageKey: stage.key,
-                                          mode: "resize-end",
-                                          startX: e.clientX,
-                                          origStart: startNorm,
-                                          origEnd: endNorm,
-                                          previewStart: startNorm,
-                                          previewEnd: endNorm,
-                                        });
-                                      }}
-                                      className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-white/30"
-                                    />
+                                {/* Right timeline cell for this sub-stage */}
+                                <div
+                                  style={{
+                                    width: timelineWidth,
+                                    height: 36,
+                                    background: "#f8fafc",
+                                  }}
+                                  className="relative shrink-0"
+                                >
+                                  {/* Day gridlines */}
+                                  <div className="absolute inset-0 flex pointer-events-none">
+                                    {days.map((dTs) => {
+                                      const dow = new Date(dTs).getDay();
+                                      const isWeekend = dow === 0 || dow === 6;
+                                      return (
+                                        <div
+                                          key={dTs}
+                                          style={{
+                                            width: dayWidth,
+                                            borderColor: "rgba(226, 232, 240, 0.7)",
+                                            background: isWeekend
+                                              ? "rgba(148, 163, 184, 0.06)"
+                                              : "transparent",
+                                          }}
+                                          className="h-full border-r shrink-0"
+                                        />
+                                      );
+                                    })}
                                   </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
+
+                                  {/* Dedicated stage bar */}
+                                  {renderStageBar(order, stage, 36)}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
