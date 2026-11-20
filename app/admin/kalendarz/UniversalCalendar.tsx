@@ -1793,90 +1793,6 @@ export default function UniversalCalendar({
             <>
               <div style={{ width: 1, height: 20, background: "var(--line)", margin: "0 2px" }} />
 
-              {/* Assigned User Filter Dropdown */}
-              <div style={{ position: "relative" }}>
-                <button
-                  onClick={() => setShowUserFilterDropdown((prev) => !prev)}
-                  className="btn btn-xs"
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    fontSize: 12, padding: "6px 12px", borderRadius: 6,
-                    background: activeUserFilters.size > 0 ? "var(--accent)22" : "var(--panel-2)",
-                    color: activeUserFilters.size > 0 ? "var(--accent)" : "var(--text-strong)",
-                    border: `1px solid ${activeUserFilters.size > 0 ? "var(--accent)" : "var(--line)"}`,
-                    fontWeight: activeUserFilters.size > 0 ? 700 : 600,
-                    cursor: "pointer", transition: "all 0.15s",
-                  }}
-                >
-                  <span>👤</span>
-                  <span>
-                    {activeUserFilters.size === 0
-                      ? "Wszyscy użytkownicy"
-                      : activeUserFilters.size === 1
-                      ? (allUsers?.find((u) => u._id === Array.from(activeUserFilters)[0])?.displayName ?? "1 użytkownik")
-                      : `${activeUserFilters.size} użytkowników`}
-                  </span>
-                  <span style={{ fontSize: 9, opacity: 0.7 }}>{showUserFilterDropdown ? "▲" : "▼"}</span>
-                </button>
-
-                {showUserFilterDropdown && (
-                  <div
-                    style={{
-                      position: "absolute", top: "calc(100% + 6px)", right: 0,
-                      background: "var(--card)", border: "1px solid var(--line)",
-                      borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                      zIndex: 50, minWidth: 210, display: "flex", flexDirection: "column", gap: 4,
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
-                        Przypisany użytkownik
-                      </span>
-                      {activeUserFilters.size > 0 && (
-                        <button
-                          onClick={() => setActiveUserFilters(new Set())}
-                          style={{ fontSize: 10, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
-                        >
-                          Pokaż wszystkich
-                        </button>
-                      )}
-                    </div>
-
-                    {allUsers && [...allUsers]
-                      .sort((a, b) => (a._id === currentUser?._id ? -1 : b._id === currentUser?._id ? 1 : 0))
-                      .map((user) => {
-                        const name = user.displayName ?? user.login ?? "?";
-                        const isMe = user._id === currentUser?._id;
-                        const active = activeUserFilters.has(user._id as string);
-                        return (
-                          <button
-                            key={user._id}
-                            onClick={() => toggleUserFilter(user._id as string)}
-                            style={{
-                              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                              padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
-                              background: active ? `${user.color ?? "#64748b"}18` : "transparent",
-                              color: active ? "var(--text-strong)" : "var(--text)",
-                              border: `1px solid ${active ? `${user.color ?? "#64748b"}44` : "transparent"}`,
-                              cursor: "pointer", textAlign: "left", width: "100%", transition: "all 0.1s",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: user.color ?? "#64748b", flexShrink: 0 }} />
-                              <span style={{ fontWeight: active ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {isMe ? `${name} (Ja)` : name}
-                              </span>
-                            </div>
-                            <span style={{ fontSize: 12, color: active ? (user.color ?? "var(--accent)") : "var(--text-mute)" }}>
-                              {active ? "✓" : "+"}
-                            </span>
-                          </button>
-                        );
-                      })}
-                  </div>
-                )}
-              </div>
-
               {/* Private toggle */}
               <button
                 onClick={() => setShowPrivate((p) => !p)}
@@ -2114,8 +2030,8 @@ export default function UniversalCalendar({
             })}
           </div>
 
-          {/* Row 2: Zasoby (Dostawcy i Ekipy) */}
-          {(activeSuppliers.length > 0 || installationTeams.length > 0) && (
+          {/* Row 2: Zasoby (Dostawcy, Ekipy i Użytkownicy) */}
+          {(activeSuppliers.length > 0 || installationTeams.length > 0 || (allUsers && allUsers.length > 0)) && (
             <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, paddingTop: 6, borderTop: "1px dashed var(--line)" }}>
               {/* Dynamic Suppliers Filter (Filtrowanie po Dostawcach) */}
               {activeSuppliers.length > 0 && (
@@ -2799,6 +2715,172 @@ export default function UniversalCalendar({
               )}
             </>
           )}
+
+          {/* Użytkownicy Filter */}
+          {allUsers && allUsers.length > 0 && (() => {
+            const sortedUsers = [...allUsers].sort((a, b) =>
+              a._id === currentUser?._id ? -1 : b._id === currentUser?._id ? 1 : 0,
+            );
+            const visibleUsers = sortedUsers.slice(0, 3);
+            const moreUsers = sortedUsers.slice(3);
+            const hiddenActiveCount = moreUsers.filter((u) => activeUserFilters.has(u._id as string)).length;
+
+            return (
+              <>
+                {(activeSuppliers.length > 0 || installationTeams.length > 0) && (
+                  <div style={{ width: 1, height: 18, background: "var(--line)", margin: "0 4px" }} />
+                )}
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  Użytkownicy:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveUserFilters(new Set());
+                    if (currentUser?._id) {
+                      localStorage.setItem(`montaz_user_filter_${currentUser._id}`, JSON.stringify([]));
+                    }
+                  }}
+                  title="Pokaż wszystkich użytkowników"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 3,
+                    padding: "3px 8px", borderRadius: 12, fontSize: 11,
+                    background: activeUserFilters.size === 0 ? "#e0f2fe" : "var(--panel)",
+                    color: activeUserFilters.size === 0 ? "#0369a1" : "var(--text-mute)",
+                    border: `1px solid ${activeUserFilters.size === 0 ? "#7dd3fc" : "var(--line)"}`,
+                    fontWeight: 700, cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                  }}
+                >
+                  <span>
+                    {activeUserFilters.size === 0
+                      ? `Wszyscy (${sortedUsers.length})`
+                      : `Wszyscy (${activeUserFilters.size}/${sortedUsers.length})`}
+                  </span>
+                </button>
+
+                {visibleUsers.map((user) => {
+                  const name = user.displayName ?? user.login ?? "?";
+                  const isMe = user._id === currentUser?._id;
+                  const active = activeUserFilters.has(user._id as string);
+                  const userColor = user.color ?? "#64748b";
+                  return (
+                    <button
+                      key={user._id}
+                      type="button"
+                      onClick={() => toggleUserFilter(user._id as string)}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                        background: active ? `${userColor}22` : "var(--panel)",
+                        color: active ? userColor : "var(--text-mute)",
+                        border: `1.5px solid ${active ? userColor : "var(--line)"}`,
+                        fontWeight: active ? 700 : 500,
+                        cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                      }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: userColor, flexShrink: 0 }} />
+                      <span>{isMe ? `${name} (Ja)` : name}</span>
+                    </button>
+                  );
+                })}
+
+                {moreUsers.length > 0 && (
+                  <div
+                    style={{ position: "relative" }}
+                    onMouseEnter={() => setShowUserFilterDropdown(true)}
+                    onMouseLeave={() => setShowUserFilterDropdown(false)}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setShowUserFilterDropdown((prev) => !prev)}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "4px 10px", borderRadius: 20, fontSize: 11.5,
+                        background: hiddenActiveCount > 0 ? "var(--accent)18" : "var(--panel)",
+                        color: hiddenActiveCount > 0 ? "var(--accent)" : "var(--text-mute)",
+                        border: `1.5px solid ${hiddenActiveCount > 0 ? "var(--accent)" : "var(--line)"}`,
+                        fontWeight: hiddenActiveCount > 0 ? 700 : 500,
+                        cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+                      }}
+                    >
+                      <span>
+                        Więcej ({moreUsers.length}){hiddenActiveCount > 0 ? ` • ${hiddenActiveCount}` : ""}
+                      </span>
+                      <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>
+                        {showUserFilterDropdown ? "▲" : "▼"}
+                      </span>
+                    </button>
+
+                    {showUserFilterDropdown && (
+                      <div style={{ position: "absolute", top: "100%", right: 0, paddingTop: 6, zIndex: 50 }}>
+                        <div
+                          style={{
+                            background: "var(--card)", border: "1px solid var(--line)",
+                            borderRadius: 10, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                            minWidth: 210, display: "flex", flexDirection: "column", gap: 4,
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 6px 6px", borderBottom: "1px solid var(--line)", marginBottom: 2 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-strong)" }}>
+                              Pozostali użytkownicy
+                            </span>
+                            {activeUserFilters.size > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveUserFilters(new Set());
+                                  if (currentUser?._id) {
+                                    localStorage.setItem(`montaz_user_filter_${currentUser._id}`, JSON.stringify([]));
+                                  }
+                                }}
+                                style={{ fontSize: 10, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
+                              >
+                                Pokaż wszystkich
+                              </button>
+                            )}
+                          </div>
+                          {moreUsers.map((user) => {
+                            const name = user.displayName ?? user.login ?? "?";
+                            const isMe = user._id === currentUser?._id;
+                            const active = activeUserFilters.has(user._id as string);
+                            const userColor = user.color ?? "#64748b";
+                            return (
+                              <button
+                                key={user._id}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleUserFilter(user._id as string);
+                                }}
+                                style={{
+                                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                                  padding: "6px 8px", borderRadius: 6, fontSize: 11.5,
+                                  background: active ? `${userColor}18` : "transparent",
+                                  color: active ? "var(--text-strong)" : "var(--text)",
+                                  border: `1px solid ${active ? `${userColor}44` : "transparent"}`,
+                                  cursor: "pointer", textAlign: "left", width: "100%", transition: "all 0.1s",
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: userColor, flexShrink: 0 }} />
+                                  <span style={{ fontWeight: active ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {isMe ? `${name} (Ja)` : name}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: 12, color: active ? userColor : "var(--text-mute)" }}>
+                                  {active ? "✓" : "+"}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
             </div>
           )}
 
