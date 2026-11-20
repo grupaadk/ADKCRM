@@ -183,7 +183,7 @@ export default function LoginPage() {
           />
         </label>
 
-        {RECAPTCHA_SITE_KEY && (
+        {RECAPTCHA_SITE_KEY ? (
           <>
             <Script
               src="https://www.google.com/recaptcha/api.js?render=explicit"
@@ -194,6 +194,19 @@ export default function LoginPage() {
               <div ref={recaptchaContainerRef} />
             </div>
           </>
+        ) : (
+          <div
+            style={{
+              fontSize: 12,
+              color: "#92400e",
+              background: "#fffbeb",
+              padding: "8px 12px",
+              borderRadius: 6,
+              border: "1px solid #fde68a",
+            }}
+          >
+            Brak klucza reCAPTCHA (`NEXT_PUBLIC_RECAPTCHA_SITE_KEY`). Jeśli działasz lokalnie, zrestartuj serwer (`npm run dev`).
+          </div>
         )}
 
         {error && (
@@ -213,7 +226,7 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={submitting || !login || !password || !recaptchaToken}
+          disabled={submitting || !login || !password}
           className="btn primary"
           style={{
             padding: "10px 24px",
