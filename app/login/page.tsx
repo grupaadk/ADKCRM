@@ -47,11 +47,12 @@ export default function LoginPage() {
     if (!recaptchaContainerRef.current) return;
     if (widgetIdRef.current !== null) return;
     const grecaptcha = window.grecaptcha;
-    if (!grecaptcha?.ready || !grecaptcha?.render) return;
+    if (!grecaptcha?.ready) return;
 
     grecaptcha.ready(() => {
       if (!recaptchaContainerRef.current || widgetIdRef.current !== null) return;
-      widgetIdRef.current = grecaptcha.render(recaptchaContainerRef.current, {
+      if (!window.grecaptcha?.render) return;
+      widgetIdRef.current = window.grecaptcha.render(recaptchaContainerRef.current, {
         sitekey: RECAPTCHA_SITE_KEY,
         callback: (token: string) => {
           setRecaptchaToken(token);
@@ -191,6 +192,7 @@ export default function LoginPage() {
               src="https://www.google.com/recaptcha/api.js?render=explicit"
               strategy="afterInteractive"
               onLoad={renderRecaptcha}
+              onReady={renderRecaptcha}
             />
             <div className="flex justify-center">
               <div ref={recaptchaContainerRef} />
