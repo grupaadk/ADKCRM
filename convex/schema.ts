@@ -940,8 +940,10 @@ export default defineSchema({
     createdBy: v.string(),
     position: v.optional(v.number()),
     labelIds: v.optional(v.array(v.id("taskLabels"))),
+    stageKey: v.optional(v.union(v.literal("kitting"), v.literal("production"), v.literal("installation"))),
   })
     .index("by_order", ["orderId"])
+    .index("by_order_stage", ["orderId", "stageKey"])
     .index("by_opportunity", ["opportunityId"])
     .index("by_complaint", ["complaintId"])
     .index("by_assignee", ["assignedUserId"]),

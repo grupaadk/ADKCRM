@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import toast from "react-hot-toast";
+import StageTasksDrawer from "@/components/StageTasksDrawer";
 import {
   Calendar,
   CalendarRange,
@@ -173,6 +174,10 @@ export default function ScheduleGantt() {
     order: ScheduleOrder;
     focusStage?: StageKey;
   } | null>(null);
+  const [selectedStageTarget, setSelectedStageTarget] = useState<{
+    order: ScheduleOrder;
+    stageKey: StageKey;
+  } | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [hoveredBar, setHoveredBar] = useState<{
     order: ScheduleOrder;
@@ -186,6 +191,14 @@ export default function ScheduleGantt() {
 
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+
+  const currentSelectedOrder = useMemo(() => {
+    if (!selectedStageTarget) return null;
+    return (
+      orders?.find((o) => o._id === selectedStageTarget.order._id) ??
+      selectedStageTarget.order
+    );
+  }, [orders, selectedStageTarget]);
 
   useEffect(() => {
     dragRef.current = dragState;
@@ -305,6 +318,13 @@ export default function ScheduleGantt() {
       setDragState(null);
       if (!curr) return;
       if (curr.previewStart === curr.origStart && curr.previewEnd === curr.origEnd) {
+        const clickedOrder = orders?.find((o) => o._id === curr.orderId);
+        if (clickedOrder) {
+          setSelectedStageTarget({
+            order: clickedOrder,
+            stageKey: curr.stageKey,
+          });
+        }
         return;
       }
 
@@ -328,7 +348,7 @@ export default function ScheduleGantt() {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
     };
-  }, [isDragging, dayWidth, updateOrder]);
+  }, [isDragging, dayWidth, updateOrder, orders]);
 
   const todayOffsetDays = diffDays(windowStartTs, todayTs);
   const timelineWidth = totalDays * dayWidth;
@@ -812,10 +832,10 @@ export default function ScheduleGantt() {
               >
                 {/* Sticky top-left corner */}
                 <div
-                  className="sticky left-0 z-30 shrink-0 w-[340px] px-3.5 py-2 border-r flex items-center justify-between text-[11px] font-bold uppercase tracking-wider"
+                  className="sticky left-0 z-30 shrink-0 w-[340px] px-3.5 py-2 border-r flex items-center justify-between text-[11px] font-bold uppercase tracking-wider shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
                   style={{
                     borderColor: "var(--line, #e5e7eb)",
-                    background: "var(--panel, #fff)",
+                    background: "#ffffff",
                     color: "var(--text-mute)",
                   }}
                 >
@@ -905,10 +925,10 @@ export default function ScheduleGantt() {
                       >
                         {/* Left sticky cell */}
                         <div
-                          className="sticky left-0 z-10 shrink-0 w-[340px] px-3.5 py-2 border-r flex items-center justify-between gap-2.5"
+                          className="sticky left-0 z-20 shrink-0 w-[340px] px-3.5 py-2 border-r flex items-center justify-between gap-2.5 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
                           style={{
                             borderColor: "var(--line, #e5e7eb)",
-                            background: "var(--card, #fff)",
+                            background: "#ffffff",
                           }}
                         >
                           <div className="min-w-0 flex-1">
@@ -994,6 +1014,10 @@ export default function ScheduleGantt() {
                                           () => setRecentlyCreatedKey(null),
                                           1500,
                                         );
+                                        setSelectedStageTarget({
+                                          order,
+                                          stageKey: st.key,
+                                        });
                                       } else {
                                         void handleCreateStageBar(order, st.key);
                                       }
@@ -1139,6 +1163,22 @@ export default function ScheduleGantt() {
             });
             toast.success("Zapisano daty etapów");
             setEditingTarget(null);
+          }}
+        />
+      )}
+
+      {/* Stage Tasks Slide-over Drawer */}
+      {selectedStageTarget && currentSelectedOrder && (
+        <StageTasksDrawer
+          open={Boolean(selectedStageTarget)}
+          onClose={() => setSelectedStageTarget(null)}
+          order={currentSelectedOrder}
+          stageKey={selectedStageTarget.stageKey}
+          onEditDates={() => {
+            setEditingTarget({
+              order: currentSelectedOrder,
+              focusStage: selectedStageTarget.stageKey,
+            });
           }}
         />
       )}

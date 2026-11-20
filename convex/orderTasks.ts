@@ -87,6 +87,7 @@ export const create = mutation({
     dueDate: v.optional(v.number()),
     assignedUserId: v.optional(v.id("users")), // legacy
     assignedUserIds: v.optional(v.array(v.id("users"))),
+    stageKey: v.optional(v.union(v.literal("kitting"), v.literal("production"), v.literal("installation"))),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -100,6 +101,7 @@ export const create = mutation({
       orderId: args.orderId,
       opportunityId: args.opportunityId,
       complaintId: args.complaintId,
+      stageKey: args.stageKey,
       title: args.title,
       dueDate: args.dueDate,
       status: args.status ?? "todo",
@@ -132,10 +134,12 @@ export const update = mutation({
     addedToCalendar: v.optional(v.boolean()),
     position: v.optional(v.number()),
     labelIds: v.optional(v.array(v.id("taskLabels"))),
+    stageKey: v.optional(v.union(v.literal("kitting"), v.literal("production"), v.literal("installation"))),
+    clearStageKey: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requireUser(ctx);
-    const { taskId, clearDueDate, clearAssignee, clearColumnId, ...rest } = args;
+    const { taskId, clearDueDate, clearAssignee, clearColumnId, clearStageKey, ...rest } = args;
     const patch: Record<string, unknown> = {};
     if (rest.title !== undefined) patch.title = rest.title;
     if (rest.status !== undefined) {
@@ -170,7 +174,73 @@ export const update = mutation({
     }
     if (rest.position !== undefined) patch.position = rest.position;
     if (rest.labelIds !== undefined) patch.labelIds = rest.labelIds;
+    if (rest.stageKey !== undefined) patch.stageKey = rest.stageKey;
+    if (clearStageKey) patch.stageKey = undefined;
     await ctx.db.patch(taskId, patch);
+  },
+});
+
+export const applyDefaultStageChecklist = mutation({
+  args: {
+    orderId: v.id("orders"),
+    stageKey: v.union(v.literal("kitting"), v.literal("production"), v.literal("installation")),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new ConvexError("Zlecenie nie znalezione.");
+
+    const DEFAULT_CHECKLISTS: Record<
+      "kitting" | "production" | "installation",
+      string[]
+    > = {
+      kitting: [
+        "Zamówienie profili i akcesoriów systemowych",
+        "Weryfikacja terminu dostawy pakietów szybowych",
+        "Kompletacja okuć, uszczelek i łączników",
+        "Kontrola jakości komponentów przed przekazaniem do produkcji",
+      ],
+      production: [
+        "Cięcie i zbrojenie profili",
+        "Zgrzewanie i frezowanie naroży",
+        "Szklenie i klinowanie pakietów szybowych",
+        "Okucie i wstępna regulacja skrzydeł",
+        "Kontrola jakościowa i pakowanie do transportu",
+      ],
+      installation: [
+        "Weryfikacja gotowości otworów na budowie z klientem",
+        "Załadunek stolarki i zabezpieczenie transportu",
+        "Montaż stolarki z warstwowym uszczelnieniem",
+        "Końcowa regulacja okuć i test działania",
+        "Podpisanie protokołu odbioru prac montażowych",
+      ],
+    };
+
+    const items = DEFAULT_CHECKLISTS[args.stageKey];
+    const createdBy = userIdentifier(user);
+
+    const existingTasks = await ctx.db
+      .query("orderTasks")
+      .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
+      .collect();
+
+    const existingTitles = new Set(
+      existingTasks
+        .filter((t) => t.stageKey === args.stageKey)
+        .map((t) => t.title.trim().toLowerCase()),
+    );
+
+    for (const title of items) {
+      if (!existingTitles.has(title.trim().toLowerCase())) {
+        await ctx.db.insert("orderTasks", {
+          orderId: args.orderId,
+          stageKey: args.stageKey,
+          title,
+          status: "todo",
+          createdBy,
+        });
+      }
+    }
   },
 });
 
