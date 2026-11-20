@@ -6,6 +6,40 @@ import { requireUser, requireRole, userIdentifier } from "./lib/auth";
 import { resolveStatuses, type StatusDef } from "../lib/statuses";
 import { notifyNewOrderMessage } from "./notifications";
 
+/** Mapowanie etapów Gantta (Kompletacja, Produkcja, Montaż) na pola dat w zleceniu. */
+const STAGE_DATE_FIELDS = [
+  {
+    keys: ["kitting", "kompletacja"],
+    labels: ["kompletacja"],
+    startField: "completionStartDate",
+    endField: "completionEndDate",
+  },
+  {
+    keys: ["production"],
+    labels: ["produkcja"],
+    startField: "productionStartDate",
+    endField: "productionEndDate",
+  },
+  {
+    keys: ["installation"],
+    labels: ["montaż", "montaz"],
+    startField: "installationPhaseStartDate",
+    endField: "installationPhaseEndDate",
+  },
+] as const;
+
+function matchesStage(
+  statusKey: string,
+  registry: StatusDef[],
+  stage: (typeof STAGE_DATE_FIELDS)[number],
+): boolean {
+  const keyLower = statusKey.trim().toLowerCase();
+  if (stage.keys.some((k) => k === keyLower)) return true;
+  const def = registry.find((s) => s.key === statusKey);
+  const labelLower = def?.label?.trim().toLowerCase();
+  return Boolean(labelLower && stage.labels.some((l) => l === labelLower));
+}
+
 export async function nextOrderNumber(ctx: MutationCtx): Promise<string> {
   const now = new Date();
   const year = now.getFullYear();
@@ -49,6 +83,109 @@ function extractDriveFileId(url: string): string | null {
   const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
   return match?.[1] ?? null;
 }
+
+function resolveStageKey(
+  statusKey: string,
+  registry: StatusDef[],
+): "kitting" | "production" | "installation" | null {
+  for (const stage of STAGE_DATE_FIELDS) {
+    if (matchesStage(statusKey, registry, stage)) {
+      return stage.keys[0];
+    }
+  }
+  return null;
+}
+
+export const listForSchedule = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireUser(ctx);
+
+    const config = await ctx.db.query("crmConfig").first();
+    const registry = resolveStatuses(
+      config?.statuses as StatusDef[] | undefined,
+      config?.statusLabels,
+    );
+
+    const matchingDefs = registry.filter(
+      (s) => s.kind === "order" && resolveStageKey(s.key, registry) !== null,
+    );
+
+    const ordersByStatus = await Promise.all(
+      matchingDefs.map((def) =>
+        ctx.db
+          .query("orders")
+          .withIndex("by_status", (q) => q.eq("status", def.key))
+          .take(250),
+      ),
+    );
+
+    const orders = ordersByStatus.flat();
+    const uniqueClientIds = Array.from(new Set(orders.map((o) => o.clientId)));
+    const uniqueTeamIds = Array.from(
+      new Set(
+        orders
+          .map((o) => o.installationTeamId)
+          .filter((id): id is Id<"installationTeams"> => Boolean(id)),
+      ),
+    );
+
+    const [clientsList, teamsList] = await Promise.all([
+      Promise.all(uniqueClientIds.map((id) => ctx.db.get(id))),
+      Promise.all(uniqueTeamIds.map((id) => ctx.db.get(id))),
+    ]);
+
+    const clientMap = new Map(
+      clientsList
+        .filter((c): c is Doc<"clients"> => c !== null)
+        .map((c) => [c._id, c]),
+    );
+    const teamMap = new Map(
+      teamsList
+        .filter((t): t is Doc<"installationTeams"> => t !== null)
+        .map((t) => [t._id, t]),
+    );
+    const defMap = new Map(matchingDefs.map((d) => [d.key, d]));
+
+    return orders
+      .map((order) => {
+        const client = clientMap.get(order.clientId);
+        const team = order.installationTeamId
+          ? teamMap.get(order.installationTeamId)
+          : undefined;
+        const statusDef = defMap.get(order.status);
+        const stageKey = resolveStageKey(order.status, registry) ?? "kitting";
+        const clientName = client
+          ? client.clientType === "business" && client.companyName
+            ? client.companyName
+            : `${client.firstName} ${client.lastName}`.trim()
+          : "Klient";
+
+        return {
+          _id: order._id,
+          clientId: order.clientId,
+          name: order.name ?? "Zlecenie",
+          clientName,
+          investmentCity: order.investmentCity ?? client?.city ?? "",
+          services: order.services ?? [],
+          status: order.status,
+          statusLabel: statusDef?.label ?? order.status,
+          stageKey,
+          statusChangedAt: order.statusChangedAt ?? order._creationTime,
+          installationTeamId: order.installationTeamId,
+          installationTeamName: team?.name,
+          installationTeamColor: team?.color,
+          completionStartDate: order.completionStartDate,
+          completionEndDate: order.completionEndDate,
+          productionStartDate: order.productionStartDate,
+          productionEndDate: order.productionEndDate,
+          installationPhaseStartDate: order.installationPhaseStartDate,
+          installationPhaseEndDate: order.installationPhaseEndDate,
+        };
+      })
+      .sort((a, b) => (b.statusChangedAt ?? 0) - (a.statusChangedAt ?? 0));
+  },
+});
 
 export const list = query({
   args: {},
@@ -447,6 +584,12 @@ export const update = mutation({
     investmentCity: v.optional(v.string()),
     projectStartDate: v.optional(v.number()),
     projectEndDate: v.optional(v.number()),
+    completionStartDate: v.optional(v.union(v.number(), v.null())),
+    completionEndDate: v.optional(v.union(v.number(), v.null())),
+    productionStartDate: v.optional(v.union(v.number(), v.null())),
+    productionEndDate: v.optional(v.union(v.number(), v.null())),
+    installationPhaseStartDate: v.optional(v.union(v.number(), v.null())),
+    installationPhaseEndDate: v.optional(v.union(v.number(), v.null())),
     installationStartDate: v.optional(v.number()),
     installationTeamId: v.optional(v.union(v.id("installationTeams"), v.null())),
     installationDates: v.optional(v.array(v.object({
@@ -530,6 +673,20 @@ export const update = mutation({
     const { orderId, ...updates } = args;
     const order = await ctx.db.get(orderId);
     if (!order) throw new Error("Zlecenie nie znalezione");
+
+    for (const stage of STAGE_DATE_FIELDS) {
+      const nextStart =
+        args[stage.startField] === null
+          ? undefined
+          : (args[stage.startField] ?? order[stage.startField]);
+      const nextEnd =
+        args[stage.endField] === null
+          ? undefined
+          : (args[stage.endField] ?? order[stage.endField]);
+      if (nextStart !== undefined && nextEnd !== undefined && nextEnd < nextStart) {
+        throw new ConvexError("Data końca etapu nie może być wcześniejsza niż data początku.");
+      }
+    }
 
     const filtered: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(updates)) {
@@ -825,23 +982,33 @@ export const changeStatus = mutation({
       throw new Error("Status jest już ustawiony na tę wartość");
     }
 
+    const now = Date.now();
     const statusPatch: Record<string, unknown> = {
       status: args.newStatus,
-      statusChangedAt: Date.now(),
+      statusChangedAt: now,
     };
+
+    for (const stage of STAGE_DATE_FIELDS) {
+      const wasInStage = matchesStage(order.status, registry, stage);
+      const isInStage = matchesStage(args.newStatus, registry, stage);
+      if (isInStage && !wasInStage && !order[stage.startField]) {
+        statusPatch[stage.startField] = now;
+      }
+      if (wasInStage && !isInStage && !order[stage.endField]) {
+        statusPatch[stage.endField] = now;
+      }
+    }
 
     // Automatyczne przypisywanie dat zlecenia
     // Status 'installation' w tym systemie oznacza "Realizowane" (Start projektu)
     if (args.newStatus === "installation") {
       if (!order.projectStartDate) {
-        statusPatch.projectStartDate = Date.now();
+        statusPatch.projectStartDate = now;
       }
     }
-    
-
 
     if (args.newStatus === "completed") {
-      statusPatch.projectEndDate = Date.now();
+      statusPatch.projectEndDate = now;
     } else if (order.status === "completed" && args.newStatus !== "archived") {
       // Jeśli cofamy status ze Zakończone (i nie archiwizujemy), czyścimy datę końca
       statusPatch.projectEndDate = undefined;

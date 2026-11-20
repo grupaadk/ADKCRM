@@ -225,6 +225,13 @@ export default defineSchema({
     statusChangedAt: v.optional(v.number()),
     projectStartDate: v.optional(v.number()),
     projectEndDate: v.optional(v.number()),
+    // Daty etapów pod wykres Gantta (Kompletacja, Produkcja, Montaż)
+    completionStartDate: v.optional(v.number()),
+    completionEndDate: v.optional(v.number()),
+    productionStartDate: v.optional(v.number()),
+    productionEndDate: v.optional(v.number()),
+    installationPhaseStartDate: v.optional(v.number()),
+    installationPhaseEndDate: v.optional(v.number()),
     installationStartDate: v.optional(v.number()),
     installationTeamId: v.optional(v.id("installationTeams")),
     installationDates: v.optional(v.array(v.object({
