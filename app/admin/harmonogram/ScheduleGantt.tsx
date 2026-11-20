@@ -812,33 +812,7 @@ export default function ScheduleGantt() {
                                   : order[stage.endField];
 
                                 if (!rawStart && !rawEnd) {
-                                  if (subStage || stage.key !== order.stageKey) return null;
-                                  const btnLeft = Math.max(
-                                    8,
-                                    Math.min(
-                                      timelineWidth - 110,
-                                      Math.max(0, todayOffsetDays) * dayWidth + 4,
-                                    ),
-                                  );
-                                  return (
-                                    <button
-                                      key={`empty-${stage.key}`}
-                                      type="button"
-                                      onClick={() =>
-                                        setEditingTarget({ order, focusStage: stage.key })
-                                      }
-                                      style={{
-                                        left: btnLeft,
-                                        top: 12,
-                                        borderColor: stage.border,
-                                        color: stage.color,
-                                        background: stage.bg,
-                                      }}
-                                      className="absolute z-10 px-2.5 py-1 rounded-md border border-dashed text-[11px] font-semibold cursor-pointer hover:opacity-90"
-                                    >
-                                      + Zaplanuj {stage.label}
-                                    </button>
-                                  );
+                                  return null;
                                 }
 
                                 const startNorm = normalizeDayStart(rawStart ?? rawEnd!);
