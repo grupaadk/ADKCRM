@@ -164,7 +164,10 @@ export default function ScheduleGantt() {
     addDays(normalizeDayStart(Date.now()), -14),
   );
   const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(() => new Set());
-  const [editingOrder, setEditingOrder] = useState<ScheduleOrder | null>(null);
+  const [editingTarget, setEditingTarget] = useState<{
+    order: ScheduleOrder;
+    focusStage?: StageKey;
+  } | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [hoveredBar, setHoveredBar] = useState<{
     order: ScheduleOrder;
@@ -707,28 +710,61 @@ export default function ScheduleGantt() {
                                     </div>
                                   </div>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingOrder(order)}
-                                    className="px-2 py-1 text-[11px] font-semibold rounded-md border hover:bg-slate-50 cursor-pointer shrink-0"
-                                    style={{
-                                      borderColor: "var(--line)",
-                                      color: "var(--text-strong)",
-                                    }}
-                                  >
-                                    Daty
-                                  </button>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {STAGES.map((st) => {
+                                      const hasStart = Boolean(order[st.startField]);
+                                      const hasEnd = Boolean(order[st.endField]);
+                                      const isPlanned = hasStart && hasEnd;
+                                      const shortLetter = st.key === "kitting" ? "K" : st.key === "production" ? "P" : "M";
+                                      const tooltip = isPlanned
+                                        ? `${st.label}: ${formatPlDate(order[st.startField])} – ${formatPlDate(order[st.endField])}`
+                                        : `Zaplanuj ${st.label}`;
+
+                                      return (
+                                        <button
+                                          key={st.key}
+                                          type="button"
+                                          title={tooltip}
+                                          onClick={() =>
+                                            setEditingTarget({ order, focusStage: st.key })
+                                          }
+                                          className="h-6 min-w-[24px] px-1.5 rounded text-[10px] font-bold transition-opacity hover:opacity-85 cursor-pointer inline-flex items-center justify-center"
+                                          style={{
+                                            background: isPlanned ? st.bg : "transparent",
+                                            color: st.color,
+                                            border: `1px ${isPlanned ? "solid" : "dashed"} ${st.border}`,
+                                          }}
+                                        >
+                                          {isPlanned ? shortLetter : `+${shortLetter}`}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                 </>
                               ) : (
-                                <div className="pl-6 flex items-center gap-2 text-[11px]">
-                                  <span
-                                    className="w-2 h-2 rounded-full shrink-0"
-                                    style={{ background: subStage.color }}
-                                  />
-                                  <span className="font-medium" style={{ color: "var(--text)" }}>
-                                    {subStage.label}
-                                  </span>
-                                </div>
+                                <>
+                                  <div className="pl-6 flex items-center gap-2 text-[11px] min-w-0">
+                                    <span
+                                      className="w-2 h-2 rounded-full shrink-0"
+                                      style={{ background: subStage.color }}
+                                    />
+                                    <span className="font-medium truncate" style={{ color: "var(--text)" }}>
+                                      {subStage.label}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setEditingTarget({ order, focusStage: subStage.key })
+                                    }
+                                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded hover:bg-slate-100 cursor-pointer shrink-0"
+                                    style={{ color: subStage.color }}
+                                  >
+                                    {order[subStage.startField] && order[subStage.endField]
+                                      ? "Zmień"
+                                      : "+ Zaplanuj"}
+                                  </button>
+                                </>
                               )}
                             </div>
 
@@ -788,7 +824,9 @@ export default function ScheduleGantt() {
                                     <button
                                       key={`empty-${stage.key}`}
                                       type="button"
-                                      onClick={() => setEditingOrder(order)}
+                                      onClick={() =>
+                                        setEditingTarget({ order, focusStage: stage.key })
+                                      }
                                       style={{
                                         left: btnLeft,
                                         top: 12,
@@ -948,17 +986,18 @@ export default function ScheduleGantt() {
       )}
 
       {/* Stage Dates Edit Modal */}
-      {editingOrder && (
+      {editingTarget && (
         <StageDatesModal
-          order={editingOrder}
-          onClose={() => setEditingOrder(null)}
+          order={editingTarget.order}
+          focusStage={editingTarget.focusStage}
+          onClose={() => setEditingTarget(null)}
           onSave={async (patch) => {
             await updateOrder({
-              orderId: editingOrder._id,
+              orderId: editingTarget.order._id,
               ...patch,
             });
             toast.success("Zapisano daty etapów");
-            setEditingOrder(null);
+            setEditingTarget(null);
           }}
         />
       )}
@@ -968,10 +1007,12 @@ export default function ScheduleGantt() {
 
 function StageDatesModal({
   order,
+  focusStage,
   onClose,
   onSave,
 }: {
   order: ScheduleOrder;
+  focusStage?: StageKey;
   onClose: () => void;
   onSave: (patch: {
     completionStartDate: number | null;
@@ -1065,12 +1106,17 @@ function StageDatesModal({
         </div>
 
         <div className="space-y-3">
-          {STAGES.map((stage) => (
-            <div
-              key={stage.key}
-              className="rounded-lg border p-3 space-y-2"
-              style={{ borderColor: "var(--line)", background: "var(--background, #f8fafc)" }}
-            >
+          {STAGES.map((stage) => {
+            const isFocused = focusStage === stage.key;
+            return (
+              <div
+                key={stage.key}
+                className="rounded-lg border p-3 space-y-2"
+                style={{
+                  borderColor: isFocused ? stage.color : "var(--line)",
+                  background: isFocused ? stage.bg : "var(--background, #f8fafc)",
+                }}
+              >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span
@@ -1115,6 +1161,7 @@ function StageDatesModal({
                   Początek
                   <input
                     type="date"
+                    autoFocus={focusStage === stage.key}
                     value={values[stage.startField]}
                     onChange={(e) =>
                       setValues((prev) => ({ ...prev, [stage.startField]: e.target.value }))
@@ -1137,7 +1184,8 @@ function StageDatesModal({
                 </label>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
