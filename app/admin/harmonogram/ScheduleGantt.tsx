@@ -179,6 +179,7 @@ export default function ScheduleGantt() {
     x: number;
     y: number;
   } | null>(null);
+  const [recentlyCreatedKey, setRecentlyCreatedKey] = useState<string | null>(null);
 
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -374,6 +375,70 @@ export default function ScheduleGantt() {
   const todayOffsetDays = diffDays(windowStartTs, todayTs);
   const timelineWidth = totalDays * dayWidth;
 
+  const handleCreateStageBar = async (
+    order: ScheduleOrder,
+    stageKey: StageKey,
+    preferredStartTs?: number,
+  ) => {
+    const stage = STAGE_BY_KEY[stageKey];
+    const defaultDays = stageKey === "production" ? 5 : stageKey === "kitting" ? 3 : 2;
+
+    let startTs: number;
+    if (preferredStartTs) {
+      startTs = normalizeDayStart(preferredStartTs);
+    } else if (stageKey === "production" && order.completionEndDate) {
+      startTs = normalizeDayStart(addDays(order.completionEndDate, 1));
+    } else if (
+      stageKey === "installation" &&
+      (order.productionEndDate || order.completionEndDate)
+    ) {
+      const prevEnd = order.productionEndDate ?? order.completionEndDate!;
+      startTs = normalizeDayStart(addDays(prevEnd, 1));
+    } else {
+      startTs = todayTs;
+    }
+
+    const endTs = normalizeDayStart(addDays(startTs, defaultDays - 1));
+
+    // Rozwiń zlecenia, aby tory etapów były od razu widoczne
+    setExpandedOrderIds((prev) => new Set(prev).add(order._id));
+
+    // Przewiń oś czasu do nowo utworzonego obiektu
+    const offsetDays = diffDays(windowStartTs, startTs);
+    if (timelineScrollRef.current) {
+      if (offsetDays < 0 || offsetDays > totalDays - 5) {
+        setWindowStartTs(addDays(startTs, -7));
+        requestAnimationFrame(() => {
+          if (timelineScrollRef.current) {
+            timelineScrollRef.current.scrollLeft = 7 * dayWidth;
+          }
+        });
+      } else {
+        timelineScrollRef.current.scrollTo({
+          left: Math.max(0, (offsetDays - 3) * dayWidth),
+          behavior: "smooth",
+        });
+      }
+    }
+
+    setRecentlyCreatedKey(`${order._id}-${stageKey}`);
+    setTimeout(() => setRecentlyCreatedKey(null), 2500);
+
+    try {
+      await updateOrder({
+        orderId: order._id,
+        [stage.startField]: startTs,
+        [stage.endField]: endTs,
+      });
+      toast.success(
+        `Zaplanowano: ${stage.label} (${defaultDays} dni). Możesz przeciągać i rozciągać pasek na osi czasu.`,
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error("Nie udało się zapisać terminu.");
+    }
+  };
+
   const renderStageBar = (
     order: ScheduleOrder,
     stage: (typeof STAGES)[number],
@@ -407,6 +472,7 @@ export default function ScheduleGantt() {
 
     const barHeight = trackHeight <= 40 ? 24 : 30;
     const topOffset = Math.max(3, Math.floor((trackHeight - barHeight) / 2));
+    const isRecent = recentlyCreatedKey === `${order._id}-${stage.key}`;
 
     return (
       <div
@@ -453,7 +519,9 @@ export default function ScheduleGantt() {
           borderColor: "#fff",
           opacity: isDraggingThis ? 0.85 : 1,
         }}
-        className="group absolute z-10 rounded-md text-white text-[11px] font-semibold flex items-center px-2 shadow-sm cursor-grab active:cursor-grabbing select-none overflow-hidden"
+        className={`group absolute z-10 rounded-md text-white text-[11px] font-semibold flex items-center shadow-sm cursor-grab active:cursor-grabbing select-none overflow-hidden transition-all ${
+          isRecent ? "ring-2 ring-white ring-offset-1 ring-offset-cyan-500 shadow-md animate-pulse" : ""
+        }`}
       >
         {/* Left resize handle */}
         <div
@@ -472,10 +540,13 @@ export default function ScheduleGantt() {
               previewEnd: endNorm,
             });
           }}
-          className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-white/30"
-        />
+          className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize flex items-center justify-center bg-black/15 hover:bg-black/35 group-hover:opacity-100 opacity-60 transition-opacity"
+          title="Przeciągnij, aby zmienić początek"
+        >
+          <div className="w-0.5 h-3 bg-white/80 rounded-full pointer-events-none" />
+        </div>
 
-        <span className="truncate pointer-events-none">
+        <span className="truncate pointer-events-none px-3 font-medium">
           {hasExplicitEnd
             ? `${stage.label} (${spanDays}d)`
             : `${stage.label} • ustaw koniec`}
@@ -498,8 +569,11 @@ export default function ScheduleGantt() {
               previewEnd: endNorm,
             });
           }}
-          className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 bg-white/30"
-        />
+          className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize flex items-center justify-center bg-black/15 hover:bg-black/35 group-hover:opacity-100 opacity-60 transition-opacity"
+          title="Przeciągnij, aby zmienić koniec (czas trwania)"
+        >
+          <div className="w-0.5 h-3 bg-white/80 rounded-full pointer-events-none" />
+        </div>
       </div>
     );
   };
@@ -968,9 +1042,13 @@ export default function ScheduleGantt() {
                                   key={st.key}
                                   type="button"
                                   title={tooltip}
-                                  onClick={() =>
-                                    setEditingTarget({ order, focusStage: st.key })
-                                  }
+                                  onClick={() => {
+                                    if (isPlanned) {
+                                      setEditingTarget({ order, focusStage: st.key });
+                                    } else {
+                                      void handleCreateStageBar(order, st.key);
+                                    }
+                                  }}
                                   className="h-6 min-w-[24px] px-1.5 rounded text-[10px] font-bold transition-opacity hover:opacity-85 cursor-pointer inline-flex items-center justify-center"
                                   style={{
                                     background: isPlanned ? st.bg : "transparent",
@@ -1077,9 +1155,13 @@ export default function ScheduleGantt() {
 
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      setEditingTarget({ order, focusStage: stage.key })
-                                    }
+                                    onClick={() => {
+                                      if (isPlanned) {
+                                        setEditingTarget({ order, focusStage: stage.key });
+                                      } else {
+                                        void handleCreateStageBar(order, stage.key);
+                                      }
+                                    }}
                                     className="text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors cursor-pointer shrink-0 hover:opacity-90"
                                     style={{
                                       borderColor: stage.border,
@@ -1098,7 +1180,19 @@ export default function ScheduleGantt() {
                                     height: 36,
                                     background: "#f8fafc",
                                   }}
-                                  className="relative shrink-0"
+                                  className={`relative shrink-0 ${!isPlanned ? "cursor-pointer group/cell hover:bg-sky-50/50 transition-colors" : ""}`}
+                                  onClick={(e) => {
+                                    if (isPlanned) return;
+                                    if ((e.target as HTMLElement).closest("[data-resize-handle]")) return;
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const clickX = e.clientX - rect.left;
+                                    const clickedDayIndex = Math.floor(clickX / dayWidth);
+                                    if (clickedDayIndex >= 0 && clickedDayIndex < totalDays) {
+                                      const clickedTs = addDays(windowStartTs, clickedDayIndex);
+                                      void handleCreateStageBar(order, stage.key, clickedTs);
+                                    }
+                                  }}
+                                  title={!isPlanned ? `Kliknij na osi czasu, aby umieścić ${stage.label} od wybranego dnia` : undefined}
                                 >
                                   {/* Day gridlines */}
                                   <div className="absolute inset-0 flex pointer-events-none">
