@@ -9,11 +9,10 @@ import toast from "react-hot-toast";
 import {
   Calendar,
   CalendarRange,
-  ChevronDown,
+  Check,
   ChevronLeft,
   ChevronRight,
-  ChevronsUpDown,
-  CornerDownRight,
+  Diamond,
   ExternalLink,
   Search,
   SlidersHorizontal,
@@ -21,9 +20,16 @@ import {
 } from "lucide-react";
 
 const MS_PER_DAY = 86_400_000;
+const LEFT_PANEL_WIDTH = 340;
 
 type StageKey = "kitting" | "production" | "installation";
 type ZoomLevel = "day" | "week" | "month";
+
+const STAGE_ORDER: Record<StageKey, number> = {
+  kitting: 0,
+  production: 1,
+  installation: 2,
+};
 
 const ZOOM_DAY_WIDTH: Record<ZoomLevel, number> = {
   day: 44,
@@ -61,33 +67,34 @@ const STAGES: Array<{
   {
     key: "installation",
     label: "Montaż",
-    color: "#14b8a6",
-    bg: "rgba(20, 184, 166, 0.16)",
-    border: "rgba(20, 184, 166, 0.50)",
+    color: "#059669",
+    bg: "rgba(5, 150, 105, 0.14)",
+    border: "rgba(5, 150, 105, 0.45)",
     startField: "installationPhaseStartDate",
     endField: "installationPhaseEndDate",
   },
 ];
 
-const STAGE_BY_KEY = Object.fromEntries(STAGES.map((s) => [s.key, s])) as Record<
-  StageKey,
-  (typeof STAGES)[number]
->;
+const STAGE_BY_KEY = STAGES.reduce(
+  (acc, s) => {
+    acc[s.key] = s;
+    return acc;
+  },
+  {} as Record<StageKey, (typeof STAGES)[number]>,
+);
 
 interface ScheduleOrder {
   _id: Id<"orders">;
-  clientId: Id<"clients">;
   name: string;
-  clientName: string;
-  investmentCity: string;
-  services: string[];
+  orderNumber?: string;
   status: string;
   statusLabel: string;
   stageKey: StageKey;
-  statusChangedAt: number;
+  clientId: Id<"clients">;
+  clientName: string;
+  investmentCity?: string;
   installationTeamId?: Id<"installationTeams">;
   installationTeamName?: string;
-  installationTeamColor?: string;
   completionStartDate?: number;
   completionEndDate?: number;
   productionStartDate?: number;
@@ -116,15 +123,14 @@ function normalizeDayStart(ts: number): number {
 function addDays(ts: number, days: number): number {
   const d = new Date(ts);
   d.setDate(d.getDate() + days);
-  d.setHours(0, 0, 0, 0);
   return d.getTime();
 }
 
-function diffDays(startTs: number, endTs: number): number {
-  return Math.round((normalizeDayStart(endTs) - normalizeDayStart(startTs)) / MS_PER_DAY);
+function diffDays(a: number, b: number): number {
+  return Math.round((b - a) / MS_PER_DAY);
 }
 
-function tsToDateInput(ts?: number): string {
+function tsToDateInput(ts?: number | null): string {
   if (!ts) return "";
   const d = new Date(ts);
   const y = d.getFullYear();
@@ -133,14 +139,15 @@ function tsToDateInput(ts?: number): string {
   return `${y}-${m}-${day}`;
 }
 
-function dateInputToTs(str: string): number | undefined {
+function dateInputToTs(str?: string): number | undefined {
   if (!str) return undefined;
   const [y, m, d] = str.split("-").map(Number);
   if (!y || !m || !d) return undefined;
-  return new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
+  const date = new Date(y, m - 1, d, 0, 0, 0, 0);
+  return date.getTime();
 }
 
-function formatPlDate(ts?: number): string {
+function formatPlDate(ts?: number | null): string {
   if (!ts) return "—";
   return new Date(ts).toLocaleDateString("pl-PL", {
     day: "2-digit",
@@ -155,9 +162,6 @@ export default function ScheduleGantt() {
   const orders = useQuery(api.orders.listForSchedule) as ScheduleOrder[] | undefined;
   const updateOrder = useMutation(api.orders.update);
 
-  const [selectedStages, setSelectedStages] = useState<Set<StageKey>>(
-    () => new Set<StageKey>(["kitting", "production", "installation"]),
-  );
   const [onlyUnscheduled, setOnlyUnscheduled] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [teamFilter, setTeamFilter] = useState<string>("all");
@@ -165,7 +169,6 @@ export default function ScheduleGantt() {
   const [windowStartTs, setWindowStartTs] = useState<number>(() =>
     addDays(normalizeDayStart(Date.now()), -14),
   );
-  const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(() => new Set());
   const [editingTarget, setEditingTarget] = useState<{
     order: ScheduleOrder;
     focusStage?: StageKey;
@@ -228,13 +231,13 @@ export default function ScheduleGantt() {
     if (!orders) return [];
     const q = searchTerm.trim().toLowerCase();
     return orders.filter((o) => {
-      if (!selectedStages.has(o.stageKey)) return false;
       if (teamFilter !== "all" && o.installationTeamId !== teamFilter) return false;
       if (onlyUnscheduled) {
-        const currentStage = STAGE_BY_KEY[o.stageKey];
-        const hasStart = Boolean(o[currentStage.startField]);
-        const hasEnd = Boolean(o[currentStage.endField]);
-        if (hasStart && hasEnd) return false;
+        const isFullyScheduled =
+          Boolean(o.completionStartDate && o.completionEndDate) &&
+          Boolean(o.productionStartDate && o.productionEndDate) &&
+          Boolean(o.installationPhaseStartDate && o.installationPhaseEndDate);
+        if (isFullyScheduled) return false;
       }
       if (q) {
         const hay = `${o.name} ${o.clientName} ${o.investmentCity}`.toLowerCase();
@@ -242,7 +245,7 @@ export default function ScheduleGantt() {
       }
       return true;
     });
-  }, [orders, selectedStages, teamFilter, onlyUnscheduled, searchTerm]);
+  }, [orders, teamFilter, onlyUnscheduled, searchTerm]);
 
   const scrollToToday = useCallback(() => {
     const el = timelineScrollRef.current;
@@ -327,51 +330,6 @@ export default function ScheduleGantt() {
     };
   }, [isDragging, dayWidth, updateOrder]);
 
-  const handleStagePillClick = (key: StageKey) => {
-    if (selectedStages.size === STAGES.length) {
-      // Jeśli zaznaczone były wszystkie, kliknięcie filtruje tylko do tego wybranego
-      setSelectedStages(new Set([key]));
-    } else if (selectedStages.has(key)) {
-      if (selectedStages.size === 1) {
-        // Kliknięcie jedynego aktywnego przywraca wszystkie
-        setSelectedStages(new Set(STAGES.map((s) => s.key)));
-      } else {
-        setSelectedStages((prev) => {
-          const next = new Set(prev);
-          next.delete(key);
-          return next;
-        });
-      }
-    } else {
-      setSelectedStages((prev) => new Set(prev).add(key));
-    }
-  };
-
-  const selectAllStages = () => {
-    setSelectedStages(new Set(STAGES.map((s) => s.key)));
-  };
-
-  const toggleExpandedOrder = (id: string) => {
-    setExpandedOrderIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const isAllExpanded =
-    filteredOrders.length > 0 &&
-    filteredOrders.every((o) => expandedOrderIds.has(o._id));
-
-  const toggleAllExpanded = () => {
-    if (isAllExpanded || expandedOrderIds.size > 0) {
-      setExpandedOrderIds(new Set());
-    } else {
-      setExpandedOrderIds(new Set(filteredOrders.map((o) => o._id)));
-    }
-  };
-
   const todayOffsetDays = diffDays(windowStartTs, todayTs);
   const timelineWidth = totalDays * dayWidth;
 
@@ -399,9 +357,6 @@ export default function ScheduleGantt() {
     }
 
     const endTs = normalizeDayStart(addDays(startTs, defaultDays - 1));
-
-    // Rozwiń zlecenia, aby tory etapów były od razu widoczne
-    setExpandedOrderIds((prev) => new Set(prev).add(order._id));
 
     // Przewiń oś czasu do nowo utworzonego obiektu
     const offsetDays = diffDays(windowStartTs, startTs);
@@ -431,7 +386,7 @@ export default function ScheduleGantt() {
         [stage.endField]: endTs,
       });
       toast.success(
-        `Zaplanowano: ${stage.label} (${defaultDays} dni). Możesz przeciągać i rozciągać pasek na osi czasu.`,
+        `Zaplanowano kamień milowy: ${stage.label} (${defaultDays} dni). Możesz przeciągać i rozciągać pasek na osi czasu.`,
       );
     } catch (err) {
       console.error(err);
@@ -439,10 +394,66 @@ export default function ScheduleGantt() {
     }
   };
 
+  const renderConnectors = (order: ScheduleOrder) => {
+    const connectors: React.ReactNode[] = [];
+
+    for (let i = 0; i < STAGES.length - 1; i++) {
+      const stageA = STAGES[i];
+      const stageB = STAGES[i + 1];
+
+      const isDraggingA =
+        dragState?.orderId === order._id && dragState.stageKey === stageA.key;
+      const rawStartA = isDraggingA
+        ? dragState.previewStart
+        : order[stageA.startField];
+      const rawEndA = isDraggingA ? dragState.previewEnd : order[stageA.endField];
+
+      const isDraggingB =
+        dragState?.orderId === order._id && dragState.stageKey === stageB.key;
+      const rawStartB = isDraggingB
+        ? dragState.previewStart
+        : order[stageB.startField];
+      const rawEndB = isDraggingB ? dragState.previewEnd : order[stageB.endField];
+
+      if (!rawStartA && !rawEndA) continue;
+      if (!rawStartB && !rawEndB) continue;
+
+      const startNormA = normalizeDayStart(rawStartA ?? rawEndA!);
+      const endNormA = normalizeDayStart(rawEndA ?? startNormA);
+      const spanDaysA = Math.max(1, diffDays(startNormA, endNormA) + 1);
+      const rightA = (diffDays(windowStartTs, startNormA) + spanDaysA) * dayWidth;
+
+      const startNormB = normalizeDayStart(rawStartB ?? rawEndB!);
+      const leftB = diffDays(windowStartTs, startNormB) * dayWidth;
+
+      if (leftB > rightA) {
+        const gapWidth = leftB - rightA;
+        if (rightA + gapWidth > 0 && rightA < timelineWidth) {
+          connectors.push(
+            <div
+              key={`conn-${stageA.key}-${stageB.key}`}
+              style={{
+                left: rightA,
+                width: gapWidth,
+                top: 27,
+              }}
+              className="absolute pointer-events-none flex items-center z-0"
+            >
+              <div className="flex-1 border-t-2 border-dashed border-slate-300 dark:border-slate-600" />
+              <div className="w-0 h-0 border-t-[3.5px] border-b-[3.5px] border-l-[5px] border-t-transparent border-b-transparent border-l-slate-400 shrink-0 -ml-1" />
+            </div>,
+          );
+        }
+      }
+    }
+
+    return connectors;
+  };
+
   const renderStageBar = (
     order: ScheduleOrder,
     stage: (typeof STAGES)[number],
-    trackHeight: number,
+    currentStageIdx: number,
   ) => {
     const isDraggingThis =
       dragState?.orderId === order._id && dragState.stageKey === stage.key;
@@ -470,8 +481,9 @@ export default function ScheduleGantt() {
       return null;
     }
 
-    const barHeight = trackHeight <= 40 ? 24 : 30;
-    const topOffset = Math.max(3, Math.floor((trackHeight - barHeight) / 2));
+    const stageIdx = STAGE_ORDER[stage.key];
+    const isDone = stageIdx < currentStageIdx;
+    const isCurrent = stageIdx === currentStageIdx;
     const isRecent = recentlyCreatedKey === `${order._id}-${stage.key}`;
 
     return (
@@ -511,16 +523,20 @@ export default function ScheduleGantt() {
         style={{
           left: leftPx,
           width: widthPx,
-          top: topOffset,
-          height: barHeight,
+          top: 12,
+          height: 32,
           background: stage.color,
           borderStyle: hasExplicitEnd ? "solid" : "dashed",
           borderWidth: hasExplicitEnd ? 0 : 1.5,
           borderColor: "#fff",
           opacity: isDraggingThis ? 0.85 : 1,
         }}
-        className={`group absolute z-10 rounded-md text-white text-[11px] font-semibold flex items-center shadow-sm cursor-grab active:cursor-grabbing select-none overflow-hidden transition-all ${
-          isRecent ? "ring-2 ring-white ring-offset-1 ring-offset-cyan-500 shadow-md animate-pulse" : ""
+        className={`group absolute z-10 rounded-lg text-white text-[11px] font-semibold flex items-center shadow-sm cursor-grab active:cursor-grabbing select-none overflow-hidden transition-all ${
+          isRecent
+            ? "ring-2 ring-white ring-offset-2 ring-offset-cyan-500 shadow-lg animate-pulse"
+            : isCurrent
+            ? "ring-2 ring-white/90 shadow-md"
+            : ""
         }`}
       >
         {/* Left resize handle */}
@@ -543,14 +559,31 @@ export default function ScheduleGantt() {
           className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize flex items-center justify-center bg-black/15 hover:bg-black/35 group-hover:opacity-100 opacity-60 transition-opacity"
           title="Przeciągnij, aby zmienić początek"
         >
-          <div className="w-0.5 h-3 bg-white/80 rounded-full pointer-events-none" />
+          <div className="w-0.5 h-3.5 bg-white/80 rounded-full pointer-events-none" />
         </div>
 
-        <span className="truncate pointer-events-none px-3 font-medium">
-          {hasExplicitEnd
-            ? `${stage.label} (${spanDays}d)`
-            : `${stage.label} • ustaw koniec`}
-        </span>
+        {/* Milestone Icon and Label */}
+        <div className="flex items-center gap-1.5 truncate pointer-events-none px-3 font-medium">
+          {isDone ? (
+            <Check size={12} className="stroke-[3] shrink-0 text-white/90" />
+          ) : isCurrent ? (
+            <span className="w-2 h-2 rounded-full bg-white shrink-0 animate-pulse shadow-sm" />
+          ) : (
+            <Diamond size={11} className="fill-white/30 shrink-0" />
+          )}
+
+          <span className="truncate">
+            {hasExplicitEnd
+              ? `${stage.label} (${spanDays}d)`
+              : `${stage.label} • ustaw koniec`}
+          </span>
+
+          {isCurrent && (
+            <span className="text-[9px] font-bold px-1.5 py-0.2 bg-white/25 rounded tracking-wide shrink-0 hidden sm:inline-block">
+              W TRAKCIE
+            </span>
+          )}
+        </div>
 
         {/* Right resize handle */}
         <div
@@ -572,52 +605,8 @@ export default function ScheduleGantt() {
           className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize flex items-center justify-center bg-black/15 hover:bg-black/35 group-hover:opacity-100 opacity-60 transition-opacity"
           title="Przeciągnij, aby zmienić koniec (czas trwania)"
         >
-          <div className="w-0.5 h-3 bg-white/80 rounded-full pointer-events-none" />
+          <div className="w-0.5 h-3.5 bg-white/80 rounded-full pointer-events-none" />
         </div>
-      </div>
-    );
-  };
-
-  const renderOrderSummarySpan = (order: ScheduleOrder) => {
-    let minStart: number | null = null;
-    let maxEnd: number | null = null;
-
-    for (const st of STAGES) {
-      const s = order[st.startField];
-      const e = order[st.endField];
-      if (s) {
-        const sNorm = normalizeDayStart(s);
-        minStart = minStart === null ? sNorm : Math.min(minStart, sNorm);
-      }
-      if (e) {
-        const eNorm = normalizeDayStart(e);
-        maxEnd = maxEnd === null ? eNorm : Math.max(maxEnd, eNorm);
-      }
-    }
-
-    if (minStart === null && maxEnd === null) return null;
-    const startTs = minStart ?? maxEnd!;
-    const endTs = maxEnd ?? startTs;
-    const spanDays = Math.max(1, diffDays(startTs, endTs) + 1);
-    const leftPx = diffDays(windowStartTs, startTs) * dayWidth;
-    const widthPx = Math.max(dayWidth, spanDays * dayWidth);
-
-    if (leftPx + widthPx < 0 || leftPx > timelineWidth) return null;
-
-    return (
-      <div
-        style={{
-          left: leftPx,
-          width: widthPx,
-          top: 13,
-          height: 26,
-          background: "rgba(100, 116, 139, 0.14)",
-          borderColor: "rgba(100, 116, 139, 0.35)",
-        }}
-        className="absolute z-10 rounded-md border text-slate-700 text-[10px] font-bold flex items-center px-2 select-none pointer-events-none"
-        title={`Łączny harmonogram zlecenia: ${spanDays} dni`}
-      >
-        <span className="truncate text-slate-600 font-medium">Całość ({spanDays} dni)</span>
       </div>
     );
   };
@@ -646,52 +635,18 @@ export default function ScheduleGantt() {
             </span>
           </div>
 
-          {/* Stage pills */}
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={selectAllStages}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer"
-              style={{
-                background:
-                  selectedStages.size === STAGES.length
-                    ? "var(--text-strong, #0f172a)"
-                    : "transparent",
-                color:
-                  selectedStages.size === STAGES.length
-                    ? "#ffffff"
-                    : "var(--text-mute)",
-                border: `1.5px solid ${
-                  selectedStages.size === STAGES.length
-                    ? "var(--text-strong, #0f172a)"
-                    : "var(--line)"
-                }`,
-              }}
-            >
-              Wszystkie
-            </button>
-            {STAGES.map((stage) => {
-              const active = selectedStages.has(stage.key);
-              return (
-                <button
-                  key={stage.key}
-                  type="button"
-                  onClick={() => handleStagePillClick(stage.key)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer"
-                  style={{
-                    background: active ? stage.bg : "transparent",
-                    color: active ? stage.color : "var(--text-mute)",
-                    border: `1.5px solid ${active ? stage.color : "var(--line)"}`,
-                  }}
-                >
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: active ? stage.color : "var(--text-mute)" }}
-                  />
-                  {stage.label}
-                </button>
-              );
-            })}
+          {/* Milestone Legend (Etapy jako kamienie milowe) */}
+          <div className="flex items-center gap-2 text-[11px] px-2.5 py-1 rounded-lg bg-slate-100/70 border border-slate-200/60">
+            <span className="text-slate-400 font-medium">Etapy:</span>
+            {STAGES.map((st, idx) => (
+              <React.Fragment key={st.key}>
+                {idx > 0 && <span className="text-slate-300">➔</span>}
+                <div className="flex items-center gap-1 font-semibold" style={{ color: st.color }}>
+                  <Diamond size={9} className="fill-current" />
+                  <span>{st.label}</span>
+                </div>
+              </React.Fragment>
+            ))}
           </div>
 
           <button
@@ -823,8 +778,8 @@ export default function ScheduleGantt() {
         </div>
       </div>
 
-      {/* Main Split-Pane Gantt */}
-      {orders === undefined ? (
+      {/* Main Content Area */}
+      {!orders ? (
         <div className="flex-1 flex items-center justify-center text-xs" style={{ color: "var(--text-mute)" }}>
           Ładowanie harmonogramu…
         </div>
@@ -835,7 +790,7 @@ export default function ScheduleGantt() {
             Brak zleceń spełniających kryteria
           </p>
           <p className="text-xs" style={{ color: "var(--text-mute)" }}>
-            Widok uwzględnia wyłącznie zlecenia w statusach Kompletacja, Produkcja oraz Montaż.
+            Widok uwzględnia wyłącznie zlecenia w realizacji (Kompletacja, Produkcja, Montaż).
           </p>
         </div>
       ) : (
@@ -846,7 +801,7 @@ export default function ScheduleGantt() {
             className="flex-1 overflow-auto relative"
             style={{ background: "var(--background, #f8fafc)" }}
           >
-            <div style={{ minWidth: 320 + timelineWidth }} className="flex flex-col">
+            <div style={{ minWidth: LEFT_PANEL_WIDTH + timelineWidth }} className="flex flex-col">
               {/* Sticky Header */}
               <div
                 className="sticky top-0 z-20 flex border-b"
@@ -857,32 +812,17 @@ export default function ScheduleGantt() {
               >
                 {/* Sticky top-left corner */}
                 <div
-                  className="sticky left-0 z-30 shrink-0 w-[320px] px-3 py-2 border-r flex items-center justify-between text-[11px] font-bold uppercase tracking-wider"
+                  className="sticky left-0 z-30 shrink-0 w-[340px] px-3.5 py-2 border-r flex items-center justify-between text-[11px] font-bold uppercase tracking-wider"
                   style={{
                     borderColor: "var(--line, #e5e7eb)",
                     background: "var(--panel, #fff)",
                     color: "var(--text-mute)",
                   }}
                 >
-                  <div className="flex items-center gap-1.5 normal-case tracking-normal">
-                    <button
-                      type="button"
-                      onClick={toggleAllExpanded}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 hover:text-slate-900 px-2 py-0.5 rounded border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
-                      title={
-                        isAllExpanded
-                          ? "Zwiń wszystkie etapy do jednego wiersza"
-                          : "Rozwiń etapy dla wszystkich zleceń"
-                      }
-                    >
-                      <ChevronsUpDown size={12} className="text-slate-500" />
-                      {isAllExpanded ? "Zwiń etapy" : "Rozwiń etapy"}
-                    </button>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                      Zlecenie
-                    </span>
-                  </div>
-                  <span>Etapy</span>
+                  <span>Zlecenie / Klient</span>
+                  <span className="text-[10px] text-slate-400 normal-case font-semibold">
+                    Etapy (K ➔ P ➔ M)
+                  </span>
                 </div>
 
                 {/* Timeline Header */}
@@ -939,7 +879,7 @@ export default function ScheduleGantt() {
                   <div
                     className="pointer-events-none absolute top-0 bottom-0 z-10"
                     style={{
-                      left: 320 + todayOffsetDays * dayWidth + Math.floor(dayWidth / 2),
+                      left: LEFT_PANEL_WIDTH + todayOffsetDays * dayWidth + Math.floor(dayWidth / 2),
                       width: 2,
                       background: "rgba(239, 68, 68, 0.55)",
                     }}
@@ -947,117 +887,149 @@ export default function ScheduleGantt() {
                 )}
 
                 {filteredOrders.map((order) => {
-                  const isExpanded = expandedOrderIds.has(order._id);
                   const activeStageMeta = STAGE_BY_KEY[order.stageKey];
+                  const currentStageIdx = STAGE_ORDER[order.stageKey] ?? 0;
 
                   return (
                     <div
                       key={order._id}
-                      className="border-b"
+                      className="border-b transition-colors hover:bg-slate-50/50"
                       style={{ borderColor: "var(--line, #e5e7eb)" }}
                     >
-                      {/* Main parent row */}
                       <div
-                        className="flex transition-colors"
+                        className="flex"
                         style={{
-                          minHeight: 52,
-                          background: isExpanded
-                            ? "rgba(248, 250, 252, 0.95)"
-                            : "var(--card, #fff)",
+                          minHeight: 56,
+                          background: "var(--card, #fff)",
                         }}
                       >
                         {/* Left sticky cell */}
                         <div
-                          className="sticky left-0 z-10 shrink-0 w-[320px] px-3 py-1.5 border-r flex items-center justify-between gap-2"
+                          className="sticky left-0 z-10 shrink-0 w-[340px] px-3.5 py-2 border-r flex items-center justify-between gap-2.5"
                           style={{
                             borderColor: "var(--line, #e5e7eb)",
-                            background: isExpanded
-                              ? "rgba(248, 250, 252, 0.95)"
-                              : "var(--card, #fff)",
+                            background: "var(--card, #fff)",
                           }}
                         >
-                          <div className="flex items-start gap-1.5 min-w-0 flex-1">
-                            <button
-                              type="button"
-                              onClick={() => toggleExpandedOrder(order._id)}
-                              className="mt-0.5 p-1 rounded hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 cursor-pointer shrink-0 transition-colors"
-                              title={
-                                isExpanded
-                                  ? "Zwiń etapy tego zlecenia do jednego wiersza"
-                                  : "Rozwiń każdy etap w osobnym wierszu"
-                              }
-                            >
-                              <ChevronDown
-                                size={14}
-                                className={`transition-transform duration-150 ${isExpanded ? "" : "-rotate-90"}`}
-                              />
-                            </button>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
-                                <Link
-                                  href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
-                                  className="text-xs font-bold hover:underline truncate inline-flex items-center gap-1"
-                                  style={{ color: "var(--text-strong)" }}
-                                >
-                                  {order.name}
-                                  <ExternalLink size={10} className="opacity-50 shrink-0" />
-                                </Link>
-                                <span
-                                  className="text-[10px] font-semibold px-1.5 py-0.2 rounded-full shrink-0"
-                                  style={{
-                                    background: activeStageMeta.bg,
-                                    color: activeStageMeta.color,
-                                    border: `1px solid ${activeStageMeta.border}`,
-                                  }}
-                                >
-                                  {order.statusLabel}
-                                </span>
-                              </div>
-                              <div
-                                className="text-[11px] truncate"
-                                style={{ color: "var(--text-mute)" }}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <Link
+                                href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
+                                className="text-xs font-bold hover:underline truncate inline-flex items-center gap-1"
+                                style={{ color: "var(--text-strong)" }}
                               >
-                                {order.clientName}
-                                {order.investmentCity ? ` • ${order.investmentCity}` : ""}
-                                {order.installationTeamName
-                                  ? ` • ${order.installationTeamName}`
-                                  : ""}
-                              </div>
+                                {order.name}
+                                <ExternalLink size={10} className="opacity-50 shrink-0" />
+                              </Link>
+                              <span
+                                className="text-[10px] font-semibold px-1.5 py-0.2 rounded-full shrink-0"
+                                style={{
+                                  background: activeStageMeta.bg,
+                                  color: activeStageMeta.color,
+                                  border: `1px solid ${activeStageMeta.border}`,
+                                }}
+                              >
+                                {order.statusLabel}
+                              </span>
+                            </div>
+                            <div
+                              className="text-[11px] truncate mt-0.5"
+                              style={{ color: "var(--text-mute)" }}
+                            >
+                              {order.clientName}
+                              {order.investmentCity ? ` • ${order.investmentCity}` : ""}
+                              {order.installationTeamName
+                                ? ` • ${order.installationTeamName}`
+                                : ""}
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1 shrink-0">
-                            {STAGES.map((st) => {
-                              const hasStart = Boolean(order[st.startField]);
-                              const hasEnd = Boolean(order[st.endField]);
-                              const isPlanned = hasStart && hasEnd;
+                          {/* Milestone Stepper */}
+                          <div className="flex items-center gap-0.5 shrink-0 bg-slate-100/80 p-0.5 rounded-lg border border-slate-200/70">
+                            {STAGES.map((st, idx) => {
+                              const isPlanned = Boolean(
+                                order[st.startField] && order[st.endField],
+                              );
+                              const stageIdx = STAGE_ORDER[st.key];
+                              const isDone = stageIdx < currentStageIdx;
+                              const isActive = stageIdx === currentStageIdx;
                               const shortLetter =
-                                st.key === "kitting" ? "K" : st.key === "production" ? "P" : "M";
+                                st.key === "kitting"
+                                  ? "K"
+                                  : st.key === "production"
+                                  ? "P"
+                                  : "M";
+
                               const tooltip = isPlanned
-                                ? `${st.label}: ${formatPlDate(order[st.startField])} – ${formatPlDate(order[st.endField])}`
-                                : `Zaplanuj ${st.label}`;
+                                ? `${st.label}: ${formatPlDate(order[st.startField])} – ${formatPlDate(order[st.endField])} (${isActive ? "W TRAKCIE" : isDone ? "UKOŃCZONE" : "ZAPLANOWANE"})`
+                                : `Zaplanuj ${st.label} (kliknij, aby umieścić na osi czasu)`;
 
                               return (
-                                <button
-                                  key={st.key}
-                                  type="button"
-                                  title={tooltip}
-                                  onClick={() => {
-                                    if (isPlanned) {
-                                      setEditingTarget({ order, focusStage: st.key });
-                                    } else {
-                                      void handleCreateStageBar(order, st.key);
-                                    }
-                                  }}
-                                  className="h-6 min-w-[24px] px-1.5 rounded text-[10px] font-bold transition-opacity hover:opacity-85 cursor-pointer inline-flex items-center justify-center"
-                                  style={{
-                                    background: isPlanned ? st.bg : "transparent",
-                                    color: st.color,
-                                    border: `1px ${isPlanned ? "solid" : "dashed"} ${st.border}`,
-                                  }}
-                                >
-                                  {isPlanned ? shortLetter : `+${shortLetter}`}
-                                </button>
+                                <React.Fragment key={st.key}>
+                                  {idx > 0 && (
+                                    <span className="text-[9px] text-slate-300 select-none">
+                                      ›
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    title={tooltip}
+                                    onClick={() => {
+                                      if (isPlanned) {
+                                        const s = order[st.startField];
+                                        if (s && timelineScrollRef.current) {
+                                          const offsetDays = diffDays(windowStartTs, s);
+                                          timelineScrollRef.current.scrollTo({
+                                            left: Math.max(
+                                              0,
+                                              (offsetDays - 3) * dayWidth,
+                                            ),
+                                            behavior: "smooth",
+                                          });
+                                        }
+                                        setRecentlyCreatedKey(
+                                          `${order._id}-${st.key}`,
+                                        );
+                                        setTimeout(
+                                          () => setRecentlyCreatedKey(null),
+                                          1500,
+                                        );
+                                      } else {
+                                        void handleCreateStageBar(order, st.key);
+                                      }
+                                    }}
+                                    className={`h-6 px-1.5 rounded text-[10px] font-bold cursor-pointer transition-all inline-flex items-center gap-1 ${
+                                      isActive
+                                        ? "shadow-sm ring-1"
+                                        : ""
+                                    }`}
+                                    style={{
+                                      background: isPlanned
+                                        ? isActive
+                                          ? st.color
+                                          : st.bg
+                                        : "transparent",
+                                      color: isPlanned
+                                        ? isActive
+                                          ? "#ffffff"
+                                          : st.color
+                                        : "var(--text-mute)",
+                                      borderColor: st.border,
+                                      boxShadow: isActive
+                                        ? `0 0 0 1px ${st.color}`
+                                        : "none",
+                                    }}
+                                  >
+                                    {isDone ? (
+                                      <Check size={10} className="stroke-[3]" />
+                                    ) : isActive ? (
+                                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                    ) : null}
+                                    <span>
+                                      {isPlanned ? shortLetter : `+${shortLetter}`}
+                                    </span>
+                                  </button>
+                                </React.Fragment>
                               );
                             })}
                           </div>
@@ -1067,12 +1039,28 @@ export default function ScheduleGantt() {
                         <div
                           style={{
                             width: timelineWidth,
-                            height: 52,
-                            background: isExpanded
-                              ? "rgba(248, 250, 252, 0.4)"
-                              : "transparent",
+                            height: 56,
                           }}
-                          className="relative shrink-0"
+                          className="relative shrink-0 cursor-pointer"
+                          onClick={(e) => {
+                            if ((e.target as HTMLElement).closest(".group")) return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const clickX = e.clientX - rect.left;
+                            const clickedDayIndex = Math.floor(clickX / dayWidth);
+                            if (clickedDayIndex >= 0 && clickedDayIndex < totalDays) {
+                              const clickedTs = addDays(windowStartTs, clickedDayIndex);
+                              const nextUnscheduled = STAGES.find(
+                                (st) => !order[st.startField] || !order[st.endField],
+                              );
+                              if (nextUnscheduled) {
+                                void handleCreateStageBar(
+                                  order,
+                                  nextUnscheduled.key,
+                                  clickedTs,
+                                );
+                              }
+                            }
+                          }}
                         >
                           {/* Day gridlines */}
                           <div className="absolute inset-0 flex pointer-events-none">
@@ -1095,134 +1083,15 @@ export default function ScheduleGantt() {
                             })}
                           </div>
 
-                          {/* When collapsed: render all planned stages directly on this track */}
-                          {!isExpanded &&
-                            STAGES.map((stage) => renderStageBar(order, stage, 52))}
+                          {/* Dependency connector lines between milestones */}
+                          {renderConnectors(order)}
 
-                          {/* When expanded: render a summary span of the overall order */}
-                          {isExpanded && renderOrderSummarySpan(order)}
+                          {/* Milestone bars */}
+                          {STAGES.map((stage) =>
+                            renderStageBar(order, stage, currentStageIdx),
+                          )}
                         </div>
                       </div>
-
-                      {/* Expanded child stage rows */}
-                      {isExpanded && (
-                        <div className="bg-slate-50/70 border-t border-slate-200/60 divide-y divide-slate-100">
-                          {STAGES.map((stage) => {
-                            const hasStart = Boolean(order[stage.startField]);
-                            const hasEnd = Boolean(order[stage.endField]);
-                            const isPlanned = hasStart && hasEnd;
-
-                            return (
-                              <div
-                                key={stage.key}
-                                className="flex"
-                                style={{ minHeight: 36 }}
-                              >
-                                {/* Left cell for sub-stage */}
-                                <div
-                                  className="sticky left-0 z-10 shrink-0 w-[320px] pl-7 pr-3 py-1.5 border-r flex items-center justify-between gap-2"
-                                  style={{
-                                    borderColor: "var(--line, #e5e7eb)",
-                                    background: "#f8fafc",
-                                  }}
-                                >
-                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                    <CornerDownRight
-                                      size={13}
-                                      className="text-slate-400 shrink-0"
-                                    />
-                                    <span
-                                      className="w-2 h-2 rounded-full shrink-0"
-                                      style={{ background: stage.color }}
-                                    />
-                                    <span
-                                      className="text-xs font-medium truncate"
-                                      style={{ color: "var(--text-strong)" }}
-                                    >
-                                      {stage.label}
-                                    </span>
-                                    {isPlanned ? (
-                                      <span className="text-[10px] text-slate-500 font-normal truncate ml-1">
-                                        ({formatPlDate(order[stage.startField])} –{" "}
-                                        {formatPlDate(order[stage.endField])})
-                                      </span>
-                                    ) : (
-                                      <span className="text-[10px] text-slate-400 font-normal italic ml-1">
-                                        brak terminu
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (isPlanned) {
-                                        setEditingTarget({ order, focusStage: stage.key });
-                                      } else {
-                                        void handleCreateStageBar(order, stage.key);
-                                      }
-                                    }}
-                                    className="text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors cursor-pointer shrink-0 hover:opacity-90"
-                                    style={{
-                                      borderColor: stage.border,
-                                      color: stage.color,
-                                      background: isPlanned ? stage.bg : "#ffffff",
-                                    }}
-                                  >
-                                    {isPlanned ? "Zmień" : "+ Zaplanuj"}
-                                  </button>
-                                </div>
-
-                                {/* Right timeline cell for this sub-stage */}
-                                <div
-                                  style={{
-                                    width: timelineWidth,
-                                    height: 36,
-                                    background: "#f8fafc",
-                                  }}
-                                  className={`relative shrink-0 ${!isPlanned ? "cursor-pointer group/cell hover:bg-sky-50/50 transition-colors" : ""}`}
-                                  onClick={(e) => {
-                                    if (isPlanned) return;
-                                    if ((e.target as HTMLElement).closest("[data-resize-handle]")) return;
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    const clickX = e.clientX - rect.left;
-                                    const clickedDayIndex = Math.floor(clickX / dayWidth);
-                                    if (clickedDayIndex >= 0 && clickedDayIndex < totalDays) {
-                                      const clickedTs = addDays(windowStartTs, clickedDayIndex);
-                                      void handleCreateStageBar(order, stage.key, clickedTs);
-                                    }
-                                  }}
-                                  title={!isPlanned ? `Kliknij na osi czasu, aby umieścić ${stage.label} od wybranego dnia` : undefined}
-                                >
-                                  {/* Day gridlines */}
-                                  <div className="absolute inset-0 flex pointer-events-none">
-                                    {days.map((dTs) => {
-                                      const dow = new Date(dTs).getDay();
-                                      const isWeekend = dow === 0 || dow === 6;
-                                      return (
-                                        <div
-                                          key={dTs}
-                                          style={{
-                                            width: dayWidth,
-                                            borderColor: "rgba(226, 232, 240, 0.7)",
-                                            background: isWeekend
-                                              ? "rgba(148, 163, 184, 0.06)"
-                                              : "transparent",
-                                          }}
-                                          className="h-full border-r shrink-0"
-                                        />
-                                      );
-                                    })}
-                                  </div>
-
-                                  {/* Dedicated stage bar */}
-                                  {renderStageBar(order, stage, 36)}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -1389,73 +1258,73 @@ function StageDatesModal({
                   background: isFocused ? stage.bg : "var(--background, #f8fafc)",
                 }}
               >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ background: stage.color }}
-                  />
-                  <span className="text-xs font-bold" style={{ color: "var(--text-strong)" }}>
-                    {stage.label}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  {[3, 7, 14].map((d) => (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ background: stage.color }}
+                    />
+                    <span className="text-xs font-bold" style={{ color: "var(--text-strong)" }}>
+                      {stage.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {[3, 7, 14].map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => applyPreset(stage.startField, stage.endField, d)}
+                        className="px-1.5 py-0.5 text-[10px] font-semibold rounded border hover:bg-white cursor-pointer"
+                        style={{ borderColor: "var(--line)", color: "var(--text-mute)" }}
+                      >
+                        +{d}d
+                      </button>
+                    ))}
                     <button
-                      key={d}
                       type="button"
-                      onClick={() => applyPreset(stage.startField, stage.endField, d)}
+                      onClick={() =>
+                        setValues((prev) => ({
+                          ...prev,
+                          [stage.startField]: "",
+                          [stage.endField]: "",
+                        }))
+                      }
                       className="px-1.5 py-0.5 text-[10px] font-semibold rounded border hover:bg-white cursor-pointer"
-                      style={{ borderColor: "var(--line)", color: "var(--text-mute)" }}
+                      style={{ borderColor: "var(--line)", color: "#dc2626" }}
                     >
-                      +{d}d
+                      Wyczyść
                     </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setValues((prev) => ({
-                        ...prev,
-                        [stage.startField]: "",
-                        [stage.endField]: "",
-                      }))
-                    }
-                    className="px-1.5 py-0.5 text-[10px] font-semibold rounded border hover:bg-white cursor-pointer"
-                    style={{ borderColor: "var(--line)", color: "#dc2626" }}
-                  >
-                    Wyczyść
-                  </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-[11px] font-medium" style={{ color: "var(--text-mute)" }}>
+                    Początek
+                    <input
+                      type="date"
+                      autoFocus={focusStage === stage.key}
+                      value={values[stage.startField]}
+                      onChange={(e) =>
+                        setValues((prev) => ({ ...prev, [stage.startField]: e.target.value }))
+                      }
+                      className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-xs bg-white"
+                      style={{ borderColor: "var(--line)", color: "var(--text-strong)" }}
+                    />
+                  </label>
+                  <label className="text-[11px] font-medium" style={{ color: "var(--text-mute)" }}>
+                    Koniec
+                    <input
+                      type="date"
+                      value={values[stage.endField]}
+                      onChange={(e) =>
+                        setValues((prev) => ({ ...prev, [stage.endField]: e.target.value }))
+                      }
+                      className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-xs bg-white"
+                      style={{ borderColor: "var(--line)", color: "var(--text-strong)" }}
+                    />
+                  </label>
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <label className="text-[11px] font-medium" style={{ color: "var(--text-mute)" }}>
-                  Początek
-                  <input
-                    type="date"
-                    autoFocus={focusStage === stage.key}
-                    value={values[stage.startField]}
-                    onChange={(e) =>
-                      setValues((prev) => ({ ...prev, [stage.startField]: e.target.value }))
-                    }
-                    className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-xs bg-white"
-                    style={{ borderColor: "var(--line)", color: "var(--text-strong)" }}
-                  />
-                </label>
-                <label className="text-[11px] font-medium" style={{ color: "var(--text-mute)" }}>
-                  Koniec
-                  <input
-                    type="date"
-                    value={values[stage.endField]}
-                    onChange={(e) =>
-                      setValues((prev) => ({ ...prev, [stage.endField]: e.target.value }))
-                    }
-                    className="mt-1 w-full rounded-md border px-2.5 py-1.5 text-xs bg-white"
-                    style={{ borderColor: "var(--line)", color: "var(--text-strong)" }}
-                  />
-                </label>
-              </div>
-            </div>
             );
           })}
         </div>
