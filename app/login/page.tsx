@@ -2,7 +2,30 @@
 
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useState } from "react";
+import Script from "next/script";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+
+interface Grecaptcha {
+  ready: (cb: () => void) => void;
+  render: (
+    container: HTMLElement,
+    parameters: {
+      sitekey: string;
+      callback?: (token: string) => void;
+      "expired-callback"?: () => void;
+      "error-callback"?: () => void;
+    },
+  ) => number;
+  reset: (widgetId?: number) => void;
+}
+
+declare global {
+  interface Window {
+    grecaptcha?: Grecaptcha;
+  }
+}
+
+const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
 
 export default function LoginPage() {
   const { signIn } = useAuthActions();
@@ -10,23 +33,73 @@ export default function LoginPage() {
   const search = useSearchParams();
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const recaptchaContainerRef = useRef<HTMLDivElement | null>(null);
+  const widgetIdRef = useRef<number | null>(null);
+
+  const renderRecaptcha = useCallback(() => {
+    if (!RECAPTCHA_SITE_KEY) return;
+    if (!recaptchaContainerRef.current) return;
+    if (widgetIdRef.current !== null) return;
+    const grecaptcha = window.grecaptcha;
+    if (!grecaptcha?.ready || !grecaptcha?.render) return;
+
+    grecaptcha.ready(() => {
+      if (!recaptchaContainerRef.current || widgetIdRef.current !== null) return;
+      widgetIdRef.current = grecaptcha.render(recaptchaContainerRef.current, {
+        sitekey: RECAPTCHA_SITE_KEY,
+        callback: (token: string) => {
+          setRecaptchaToken(token);
+          setError(null);
+        },
+        "expired-callback": () => {
+          setRecaptchaToken(null);
+        },
+        "error-callback": () => {
+          setRecaptchaToken(null);
+          setError("Błąd ładowania reCAPTCHA. Odśwież stronę i spróbuj ponownie.");
+        },
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    renderRecaptcha();
+  }, [renderRecaptcha]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!RECAPTCHA_SITE_KEY) {
+      setError("Brak konfiguracji klucza reCAPTCHA.");
+      return;
+    }
+
+    if (!recaptchaToken) {
+      setError("Potwierdź, że nie jesteś robotem.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       await signIn("password", {
         flow: "signIn",
         email: login.trim().toLowerCase(),
         password,
+        recaptchaToken,
       });
       const next = search.get("next") ?? "/admin/kalendarz";
       router.replace(next);
     } catch {
-      setError("Nieprawidłowy login lub hasło.");
+      setError("Nieprawidłowy login, hasło lub wygasła weryfikacja reCAPTCHA.");
+      setRecaptchaToken(null);
+      if (widgetIdRef.current !== null) {
+        window.grecaptcha?.reset(widgetIdRef.current);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -110,6 +183,19 @@ export default function LoginPage() {
           />
         </label>
 
+        {RECAPTCHA_SITE_KEY && (
+          <>
+            <Script
+              src="https://www.google.com/recaptcha/api.js?render=explicit"
+              strategy="afterInteractive"
+              onLoad={renderRecaptcha}
+            />
+            <div className="flex justify-center">
+              <div ref={recaptchaContainerRef} />
+            </div>
+          </>
+        )}
+
         {error && (
           <div
             style={{
@@ -127,7 +213,7 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={submitting || !login || !password}
+          disabled={submitting || !login || !password || !recaptchaToken}
           className="btn primary"
           style={{
             padding: "10px 24px",
