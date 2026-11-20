@@ -25,7 +25,9 @@ declare global {
   }
 }
 
-const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
+const RECAPTCHA_SITE_KEY =
+  process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ||
+  "6Lc8fykuAAAAAHaKhCBymLze0Wktfqm2xMjUltkN";
 
 export default function LoginPage() {
   const { signIn } = useAuthActions();
