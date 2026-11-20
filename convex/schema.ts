@@ -948,6 +948,24 @@ export default defineSchema({
     .index("by_complaint", ["complaintId"])
     .index("by_assignee", ["assignedUserId"]),
 
+  // 3.20.a Niezależna checklista etapów harmonogramu (Kompletacja / Produkcja / Montaż)
+  stageChecklists: defineTable({
+    orderId: v.id("orders"),
+    stageKey: v.union(
+      v.literal("kitting"),
+      v.literal("production"),
+      v.literal("installation"),
+    ),
+    title: v.string(),
+    done: v.boolean(),
+    sortOrder: v.number(),
+    createdAt: v.number(),
+    createdBy: v.optional(v.string()),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_order", ["orderId"])
+    .index("by_order_stage", ["orderId", "stageKey"]),
+
   // 3.20.c Szablony list zadań (task list templates)
   taskTemplates: defineTable({
     name: v.string(),

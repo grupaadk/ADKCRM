@@ -102,6 +102,7 @@ interface ScheduleOrder {
   productionEndDate?: number;
   installationPhaseStartDate?: number;
   installationPhaseEndDate?: number;
+  stageProgress?: Record<StageKey, { done: number; total: number }>;
 }
 
 interface DragState {
@@ -485,7 +486,15 @@ export default function ScheduleGantt() {
     const stageIdx = STAGE_ORDER[stage.key];
     const isDone = stageIdx < currentStageIdx;
     const isCurrent = stageIdx === currentStageIdx;
+    const isFuture = startNorm > todayTs;
     const isRecent = recentlyCreatedKey === `${order._id}-${stage.key}`;
+    const barBackground = isFuture ? "#64748b" : stage.color;
+
+    const progress = order.stageProgress?.[stage.key];
+    const hasChecklist = Boolean(progress && progress.total > 0);
+    const progressPct = hasChecklist
+      ? Math.round((progress!.done / progress!.total) * 100)
+      : 0;
 
     return (
       <div
@@ -523,9 +532,9 @@ export default function ScheduleGantt() {
         style={{
           left: leftPx,
           width: widthPx,
-          top: 12,
-          height: 32,
-          background: stage.color,
+          top: 10,
+          height: 36,
+          background: barBackground,
           borderStyle: hasExplicitEnd ? "solid" : "dashed",
           borderWidth: hasExplicitEnd ? 0 : 1.5,
           borderColor: "#fff",
@@ -556,15 +565,24 @@ export default function ScheduleGantt() {
               previewEnd: endNorm,
             });
           }}
-          className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize flex items-center justify-center bg-black/15 hover:bg-black/35 group-hover:opacity-100 opacity-60 transition-opacity"
+          className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize flex items-center justify-center bg-black/15 hover:bg-black/35 group-hover:opacity-100 opacity-60 transition-opacity z-10"
           title="Przeciągnij, aby zmienić początek"
         >
           <div className="w-0.5 h-3.5 bg-white/80 rounded-full pointer-events-none" />
         </div>
 
         {/* Milestone Icon and Label */}
-        <div className="flex items-center gap-1.5 truncate pointer-events-none px-3 font-medium">
-          {isDone ? (
+        <div
+          className={`flex items-center gap-1.5 truncate pointer-events-none px-3 font-medium ${
+            hasChecklist ? "pb-1" : ""
+          }`}
+        >
+          {isFuture ? (
+            <span
+              className="w-2 h-2 rounded-full shrink-0 ring-1 ring-white/70"
+              style={{ background: stage.color }}
+            />
+          ) : isDone ? (
             <Check size={12} className="stroke-[3] shrink-0 text-white/90" />
           ) : isCurrent ? (
             <span className="w-2 h-2 rounded-full bg-white shrink-0 animate-pulse shadow-sm" />
@@ -578,12 +596,31 @@ export default function ScheduleGantt() {
               : `${stage.label} • ustaw koniec`}
           </span>
 
-          {isCurrent && (
+          {hasChecklist && (
+            <span className="text-[9.5px] font-bold px-1.5 py-0.2 bg-black/25 rounded tracking-wide shrink-0 tabular-nums">
+              {progress!.done}/{progress!.total}
+            </span>
+          )}
+
+          {isCurrent && !isFuture && (
             <span className="text-[9px] font-bold px-1.5 py-0.2 bg-white/25 rounded tracking-wide shrink-0 hidden sm:inline-block">
               W TRAKCIE
             </span>
           )}
         </div>
+
+        {/* Checklist Progress Bar along bottom edge of Gantt bar */}
+        {hasChecklist && (
+          <div className="absolute bottom-0 left-0 right-0 h-[4px] bg-black/25 pointer-events-none">
+            <div
+              className="h-full transition-all duration-300"
+              style={{
+                width: `${progressPct}%`,
+                background: progressPct === 100 ? "#4ade80" : "rgba(255, 255, 255, 0.92)",
+              }}
+            />
+          </div>
+        )}
 
         {/* Right resize handle */}
         <div
@@ -1128,6 +1165,16 @@ export default function ScheduleGantt() {
               ? ` (${Math.max(1, diffDays(hoveredBar.start, hoveredBar.end) + 1)} dni)`
               : " (brak daty końca)"}
           </div>
+          {(() => {
+            const p = hoveredBar.order.stageProgress?.[hoveredBar.stage.key];
+            if (!p || p.total === 0) return null;
+            const pct = Math.round((p.done / p.total) * 100);
+            return (
+              <div className="text-[11px] mt-1 text-emerald-300 font-medium">
+                Checklista: {p.done}/{p.total} ({pct}%)
+              </div>
+            );
+          })()}
         </div>
       )}
 

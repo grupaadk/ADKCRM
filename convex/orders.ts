@@ -130,9 +130,17 @@ export const listForSchedule = query({
       ),
     );
 
-    const [clientsList, teamsList] = await Promise.all([
+    const [clientsList, teamsList, checklistsByOrder] = await Promise.all([
       Promise.all(uniqueClientIds.map((id) => ctx.db.get(id))),
       Promise.all(uniqueTeamIds.map((id) => ctx.db.get(id))),
+      Promise.all(
+        orders.map((o) =>
+          ctx.db
+            .query("stageChecklists")
+            .withIndex("by_order", (q) => q.eq("orderId", o._id))
+            .take(200),
+        ),
+      ),
     ]);
 
     const clientMap = new Map(
@@ -148,7 +156,7 @@ export const listForSchedule = query({
     const defMap = new Map(matchingDefs.map((d) => [d.key, d]));
 
     return orders
-      .map((order) => {
+      .map((order, idx) => {
         const client = clientMap.get(order.clientId);
         const team = order.installationTeamId
           ? teamMap.get(order.installationTeamId)
@@ -160,6 +168,17 @@ export const listForSchedule = query({
             ? client.companyName
             : `${client.firstName} ${client.lastName}`.trim()
           : "Klient";
+
+        const stageProgress = {
+          kitting: { done: 0, total: 0 },
+          production: { done: 0, total: 0 },
+          installation: { done: 0, total: 0 },
+        };
+        for (const item of checklistsByOrder[idx] ?? []) {
+          const bucket = stageProgress[item.stageKey];
+          bucket.total += 1;
+          if (item.done) bucket.done += 1;
+        }
 
         return {
           _id: order._id,
@@ -181,6 +200,7 @@ export const listForSchedule = query({
           productionEndDate: order.productionEndDate,
           installationPhaseStartDate: order.installationPhaseStartDate,
           installationPhaseEndDate: order.installationPhaseEndDate,
+          stageProgress,
         };
       })
       .sort((a, b) => (b.statusChangedAt ?? 0) - (a.statusChangedAt ?? 0));
