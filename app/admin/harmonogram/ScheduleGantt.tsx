@@ -8,6 +8,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import toast from "react-hot-toast";
 import StageTasksDrawer from "@/components/StageTasksDrawer";
 import {
+  ArrowLeft,
   Calendar,
   CalendarRange,
   Check,
@@ -17,9 +18,12 @@ import {
   Diamond,
   ExternalLink,
   ListChecks,
+  Maximize2,
+  Minimize2,
   Plus,
   Search,
   Trash2,
+  Tv,
   Users,
   X,
 } from "lucide-react";
@@ -145,9 +149,65 @@ function formatPlDate(ts?: number | null): string {
 
 const WEEKDAY_SHORT = ["Nd", "Pn", "Wt", "Śr", "Cz", "Pt", "Sb"];
 
-export default function ScheduleGantt() {
+export default function ScheduleGantt({
+  tvMode = false,
+}: {
+  tvMode?: boolean;
+} = {}) {
   const orders = useQuery(api.orders.listForSchedule) as ScheduleOrder[] | undefined;
   const updateOrder = useMutation(api.orders.update);
+
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [liveNow, setLiveNow] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    if (!tvMode) return;
+    const timer = setInterval(() => {
+      setLiveNow(new Date());
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [tvMode]);
+
+  useEffect(() => {
+    if (!tvMode) return;
+    const onFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, [tvMode]);
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        const target = containerRef.current ?? document.documentElement;
+        await target.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  const liveClockStr = useMemo(
+    () =>
+      liveNow.toLocaleTimeString("pl-PL", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    [liveNow],
+  );
+  const liveDateStr = useMemo(
+    () =>
+      liveNow.toLocaleDateString("pl-PL", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      }),
+    [liveNow],
+  );
 
   const [searchTerm, setSearchTerm] = useState("");
   const [stageFilter, setStageFilter] = useState<StageKey | "all">("all");
@@ -333,7 +393,7 @@ export default function ScheduleGantt() {
 
   const dayWidth = ZOOM_DAY_WIDTH[zoom];
   const totalDays = zoom === "month" ? 120 : zoom === "week" ? 90 : 75;
-  const [todayTs] = useState<number>(() => normalizeDayStart(Date.now()));
+  const todayTs = useMemo(() => normalizeDayStart(liveNow.getTime()), [liveNow]);
   const isDragging = dragState !== null;
 
   const days = useMemo(() => {
@@ -1024,7 +1084,10 @@ export default function ScheduleGantt() {
 
   return (
     <div
-      className="flex flex-col h-full rounded-xl overflow-hidden border"
+      ref={containerRef}
+      className={`flex flex-col h-full overflow-hidden ${
+        tvMode ? "rounded-none border-0" : "rounded-xl border"
+      }`}
       style={{ background: "var(--card, #fff)", borderColor: "var(--line, #e5e7eb)" }}
     >
       {/* Toolbar */}
@@ -1268,6 +1331,82 @@ export default function ScheduleGantt() {
               <ChevronRight size={14} />
             </button>
           </div>
+
+          {!tvMode ? (
+            <a
+              href="/harmonogram-tv"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border hover:bg-slate-50 transition-colors"
+              style={{
+                borderColor: "var(--line)",
+                background: "var(--background, #f8fafc)",
+                color: "var(--text-strong)",
+              }}
+              title="Otwórz pełnoekranowy widok harmonogramu na telewizor"
+            >
+              <Tv size={13} />
+              <span>Widok TV</span>
+            </a>
+          ) : (
+            <div
+              className="inline-flex items-center gap-2.5 pl-2.5 border-l"
+              style={{ borderColor: "var(--line)" }}
+            >
+              <div className="text-right leading-tight">
+                <div
+                  className="text-xs font-bold tabular-nums"
+                  style={{ color: "var(--text-strong)" }}
+                >
+                  {liveClockStr}
+                </div>
+                <div
+                  className="text-[10px] capitalize"
+                  style={{ color: "var(--text-mute)" }}
+                >
+                  {liveDateStr}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void toggleFullscreen()}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border hover:bg-slate-50 transition-colors cursor-pointer"
+                style={{
+                  borderColor: "var(--line)",
+                  background: "var(--background, #f8fafc)",
+                  color: "var(--text-strong)",
+                }}
+              >
+                {isFullscreen ? (
+                  <>
+                    <Minimize2 size={13} />
+                    <span>Wyjdź</span>
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 size={13} />
+                    <span>Pełny ekran</span>
+                  </>
+                )}
+              </button>
+
+              {!isFullscreen && (
+                <Link
+                  href="/admin/harmonogram"
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-lg border hover:bg-slate-50 transition-colors"
+                  style={{
+                    borderColor: "var(--line)",
+                    color: "var(--text-mute)",
+                  }}
+                  title="Powrót do panelu CRM"
+                >
+                  <ArrowLeft size={13} />
+                  <span>CRM</span>
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
