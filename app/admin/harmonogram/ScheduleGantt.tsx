@@ -144,7 +144,6 @@ const WEEKDAY_SHORT = ["Nd", "Pn", "Wt", "Śr", "Cz", "Pt", "Sb"];
 
 export default function ScheduleGantt() {
   const orders = useQuery(api.orders.listForSchedule) as ScheduleOrder[] | undefined;
-  const activeTeams = useQuery(api.installationTeams.listActive);
   const updateOrder = useMutation(api.orders.update);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -270,32 +269,6 @@ export default function ScheduleGantt() {
       scrollEl?.removeEventListener("scroll", handleClose);
     };
   }, [contextMenu, addStageMenu]);
-
-  const handleAssignTeam = useCallback(
-    async (orderId: Id<"orders">, nextTeamId: string) => {
-      try {
-        const teamId = nextTeamId
-          ? (nextTeamId as Id<"installationTeams">)
-          : null;
-        await updateOrder({
-          orderId,
-          installationTeamId: teamId,
-        });
-        if (teamId) {
-          const team = activeTeams?.find((t) => t._id === teamId);
-          toast.success(
-            team ? `Przypisano ekipę: ${team.name}` : "Przypisano ekipę montażową",
-          );
-        } else {
-          toast.success("Usunięto przypisanie ekipy");
-        }
-      } catch (err) {
-        console.error(err);
-        toast.error("Nie udało się zapisać ekipy montażowej.");
-      }
-    },
-    [updateOrder, activeTeams],
-  );
 
   const handleDeleteStageBar = useCallback(
     async (order: ScheduleOrder, stage: (typeof STAGES)[number]) => {
@@ -635,7 +608,6 @@ export default function ScheduleGantt() {
           onPointerDown={(e) => {
             if (e.button !== 0) return;
             if ((e.target as HTMLElement).dataset.resizeHandle) return;
-            if ((e.target as HTMLElement).closest("[data-team-select]")) return;
             e.preventDefault();
             setContextMenu(null);
             setDragState({
@@ -740,42 +712,6 @@ export default function ScheduleGantt() {
               <span className="text-[9.5px] font-bold px-1.5 py-0.2 bg-black/25 rounded tracking-wide shrink-0 tabular-nums">
                 {progress!.done}/{progress!.total}
               </span>
-            )}
-
-            {stage.key === "installation" && (
-              <select
-                data-team-select="true"
-                value={order.installationTeamId ?? ""}
-                onPointerDown={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => void handleAssignTeam(order._id, e.target.value)}
-                title="Wybierz ekipę montażową"
-                className="pointer-events-auto text-[10px] font-semibold bg-black/25 hover:bg-black/35 text-white rounded px-1.5 py-0.5 border border-white/25 focus:outline-none focus:ring-1 focus:ring-white/75 cursor-pointer max-w-[120px] truncate shrink-0"
-              >
-                <option value="" className="text-slate-500 bg-white">
-                  Wybierz ekipę…
-                </option>
-                {order.installationTeamId &&
-                  order.installationTeamName &&
-                  !activeTeams?.some((t) => t._id === order.installationTeamId) && (
-                    <option
-                      value={order.installationTeamId}
-                      className="text-slate-900 bg-white"
-                    >
-                      {order.installationTeamName}
-                    </option>
-                  )}
-                {(activeTeams ?? []).map((team) => (
-                  <option
-                    key={team._id}
-                    value={team._id}
-                    className="text-slate-900 bg-white"
-                  >
-                    {team.name}
-                  </option>
-                ))}
-              </select>
             )}
           </div>
 

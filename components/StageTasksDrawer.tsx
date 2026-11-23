@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -10,8 +10,10 @@ import {
   Calendar,
   Check,
   CheckCircle2,
+  ChevronDown,
   ExternalLink,
   Trash2,
+  Users,
 } from "lucide-react";
 import SideDrawer from "./SideDrawer";
 
@@ -70,7 +72,9 @@ interface StageTasksDrawerProps {
     clientId: Id<"clients">;
     clientName: string;
     investmentCity?: string;
+    installationTeamId?: Id<"installationTeams">;
     installationTeamName?: string;
+    installationTeamColor?: string;
     stageKey: StageKey;
     completionStartDate?: number;
     completionEndDate?: number;
@@ -93,6 +97,10 @@ export default function StageTasksDrawer({
     api.stageChecklists.listByOrderStage,
     order && stageKey ? { orderId: order._id, stageKey } : "skip",
   );
+  const activeTeams = useQuery(
+    api.installationTeams.listActive,
+    open && stageKey === "installation" ? {} : "skip",
+  );
 
   const createItem = useMutation(api.stageChecklists.create);
   const toggleItem = useMutation(api.stageChecklists.toggle);
@@ -102,6 +110,55 @@ export default function StageTasksDrawer({
   const [newItemTitle, setNewItemTitle] = useState("");
   const [adding, setAdding] = useState(false);
   const [clearingDates, setClearingDates] = useState(false);
+  const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
+  const [savingTeam, setSavingTeam] = useState(false);
+  const teamDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!teamDropdownOpen) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (
+        teamDropdownRef.current &&
+        !teamDropdownRef.current.contains(e.target as Node)
+      ) {
+        setTeamDropdownOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setTeamDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [teamDropdownOpen]);
+
+  const handleSelectTeam = async (nextTeamId: Id<"installationTeams"> | null) => {
+    if (!order || savingTeam) return;
+    setTeamDropdownOpen(false);
+    setSavingTeam(true);
+    try {
+      await updateOrder({
+        orderId: order._id,
+        installationTeamId: nextTeamId,
+      });
+      if (nextTeamId) {
+        const team = activeTeams?.find((t) => t._id === nextTeamId);
+        toast.success(
+          team ? `Przypisano ekipę: ${team.name}` : "Przypisano ekipę montażową",
+        );
+      } else {
+        toast.success("Usunięto przypisanie ekipy");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Nie udało się zapisać ekipy montażowej.");
+    } finally {
+      setSavingTeam(false);
+    }
+  };
 
   const checklistItems = items ?? [];
   const totalCount = checklistItems.length;
@@ -275,6 +332,108 @@ export default function StageTasksDrawer({
                 </button>
               )}
             </div>
+
+            {/* Installation Team Selector — only for Montaż stage */}
+            {stageKey === "installation" && (
+              <div
+                ref={teamDropdownRef}
+                className="pt-2.5 border-t border-slate-200/60 space-y-1.5 relative"
+              >
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                  <Users size={12} className="text-slate-400" />
+                  <span>Ekipa realizująca montaż</span>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={savingTeam}
+                  onClick={() => setTeamDropdownOpen((v) => !v)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border bg-white text-xs font-semibold transition-all shadow-2xs ${
+                    teamDropdownOpen
+                      ? "border-[var(--brand,#4ABBC3)] ring-2 ring-[var(--brand,#4ABBC3)]/20 shadow-sm"
+                      : "border-slate-200 hover:border-slate-300"
+                  } ${savingTeam ? "opacity-55 cursor-not-allowed" : "cursor-pointer"}`}
+                  style={{ color: "var(--text-strong)" }}
+                >
+                  <span className="flex items-center gap-2 min-w-0 truncate">
+                    {order.installationTeamId ? (
+                      <>
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-black/10"
+                          style={{
+                            background: order.installationTeamColor ?? "#059669",
+                          }}
+                        />
+                        <span className="truncate">
+                          {order.installationTeamName ?? "Przypisana ekipa"}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-slate-400 font-medium">
+                        Wybierz ekipę montażową…
+                      </span>
+                    )}
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`text-slate-400 shrink-0 ml-2 transition-transform duration-200 ${
+                      teamDropdownOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                {teamDropdownOpen && (
+                  <div className="absolute z-50 left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg space-y-0.5">
+                    <button
+                      type="button"
+                      onClick={() => void handleSelectTeam(null)}
+                      className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium text-left transition-colors cursor-pointer ${
+                        !order.installationTeamId
+                          ? "bg-slate-100 text-slate-900 font-semibold"
+                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                      }`}
+                    >
+                      <span>Bez przypisanej ekipy</span>
+                      {!order.installationTeamId && (
+                        <Check size={14} className="text-slate-600 shrink-0" />
+                      )}
+                    </button>
+
+                    {(activeTeams ?? []).length > 0 && (
+                      <div className="my-1 border-t border-slate-100" />
+                    )}
+
+                    {(activeTeams ?? []).map((team) => {
+                      const isSelected = order.installationTeamId === team._id;
+                      const teamColor = team.color ?? "#059669";
+                      return (
+                        <button
+                          key={team._id}
+                          type="button"
+                          onClick={() => void handleSelectTeam(team._id)}
+                          className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs text-left transition-colors cursor-pointer ${
+                            isSelected
+                              ? "bg-slate-900 text-white font-semibold"
+                              : "text-slate-700 font-medium hover:bg-slate-100"
+                          }`}
+                        >
+                          <span className="flex items-center gap-2 min-w-0 truncate">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-white/40"
+                              style={{ background: teamColor }}
+                            />
+                            <span className="truncate">{team.name}</span>
+                          </span>
+                          {isSelected && (
+                            <Check size={14} className="stroke-[2.5] shrink-0 ml-2" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Progress Bar */}
