@@ -426,7 +426,13 @@ export default function ScheduleGantt() {
     if (!orders) return [];
     const q = searchTerm.trim().toLowerCase();
     return orders.filter((o) => {
-      if (stageFilter !== "all" && o.stageKey !== stageFilter) return false;
+      if (stageFilter !== "all") {
+        const stageMeta = STAGE_BY_KEY[stageFilter];
+        const hasStageBar = Boolean(
+          o[stageMeta.startField] || o[stageMeta.endField],
+        );
+        if (!hasStageBar && o.stageKey !== stageFilter) return false;
+      }
       if (selectedTeamIds.length > 0) {
         const tid = o.installationTeamId ? String(o.installationTeamId) : null;
         if (!tid) {
