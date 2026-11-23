@@ -438,7 +438,7 @@ export default function ScheduleGantt() {
               style={{
                 left: rightA,
                 width: gapWidth,
-                top: 27,
+                top: 23,
               }}
               className="absolute pointer-events-none flex items-center z-0"
             >
@@ -498,67 +498,16 @@ export default function ScheduleGantt() {
       : 0;
 
     return (
-      <div
-        key={stage.key}
-        onPointerDown={(e) => {
-          if ((e.target as HTMLElement).dataset.resizeHandle) return;
-          e.preventDefault();
-          setDragState({
-            orderId: order._id,
-            stageKey: stage.key,
-            mode: "move",
-            startX: e.clientX,
-            origStart: startNorm,
-            origEnd: endNorm,
-            previewStart: startNorm,
-            previewEnd: endNorm,
-          });
-        }}
-        onMouseEnter={(e) =>
-          setHoveredBar({
-            order,
-            stage,
-            start: startNorm,
-            end: hasExplicitEnd ? endNorm : undefined,
-            x: e.clientX,
-            y: e.clientY,
-          })
-        }
-        onMouseMove={(e) =>
-          setHoveredBar((prev) =>
-            prev ? { ...prev, x: e.clientX, y: e.clientY } : null,
-          )
-        }
-        onMouseLeave={() => setHoveredBar(null)}
-        style={{
-          left: leftPx,
-          width: widthPx,
-          top: 10,
-          height: 36,
-          background: barBackground,
-          borderStyle: hasExplicitEnd ? "solid" : "dashed",
-          borderWidth: hasExplicitEnd ? 0 : 1.5,
-          borderColor: "#fff",
-          opacity: isDraggingThis ? 0.85 : 1,
-        }}
-        className={`group absolute z-10 rounded-lg text-white text-[11px] font-semibold flex items-center shadow-sm cursor-grab active:cursor-grabbing select-none overflow-hidden transition-all ${
-          isRecent
-            ? "ring-2 ring-white ring-offset-2 ring-offset-cyan-500 shadow-lg animate-pulse"
-            : isCurrent
-            ? "ring-2 ring-white/90 shadow-md"
-            : ""
-        }`}
-      >
-        {/* Left resize handle */}
+      <React.Fragment key={stage.key}>
         <div
-          data-resize-handle="left"
+          data-stage-bar="true"
           onPointerDown={(e) => {
-            e.stopPropagation();
+            if ((e.target as HTMLElement).dataset.resizeHandle) return;
             e.preventDefault();
             setDragState({
               orderId: order._id,
               stageKey: stage.key,
-              mode: "resize-start",
+              mode: "move",
               startX: e.clientX,
               origStart: startNorm,
               origEnd: endNorm,
@@ -566,86 +515,170 @@ export default function ScheduleGantt() {
               previewEnd: endNorm,
             });
           }}
-          className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize flex items-center justify-center bg-black/15 hover:bg-black/35 group-hover:opacity-100 opacity-60 transition-opacity z-10"
-          title="Przeciągnij, aby zmienić początek"
-        >
-          <div className="w-0.5 h-3.5 bg-white/80 rounded-full pointer-events-none" />
-        </div>
-
-        {/* Milestone Icon and Label */}
-        <div
-          className={`flex items-center gap-1.5 truncate pointer-events-none px-3 font-medium ${
-            hasChecklist ? "pb-1" : ""
+          onMouseEnter={(e) =>
+            setHoveredBar({
+              order,
+              stage,
+              start: startNorm,
+              end: hasExplicitEnd ? endNorm : undefined,
+              x: e.clientX,
+              y: e.clientY,
+            })
+          }
+          onMouseMove={(e) =>
+            setHoveredBar((prev) =>
+              prev ? { ...prev, x: e.clientX, y: e.clientY } : null,
+            )
+          }
+          onMouseLeave={() => setHoveredBar(null)}
+          style={{
+            left: leftPx,
+            width: widthPx,
+            top: 8,
+            height: 32,
+            background: barBackground,
+            borderStyle: hasExplicitEnd ? "solid" : "dashed",
+            borderWidth: hasExplicitEnd ? 0 : 1.5,
+            borderColor: "#fff",
+            opacity: isDraggingThis ? 0.85 : 1,
+          }}
+          className={`group absolute z-10 rounded-lg text-white text-[11px] font-semibold flex items-center shadow-sm cursor-grab active:cursor-grabbing select-none overflow-hidden transition-all ${
+            isRecent
+              ? "ring-2 ring-white ring-offset-2 ring-offset-cyan-500 shadow-lg animate-pulse"
+              : isCurrent
+              ? "ring-2 ring-white/90 shadow-md"
+              : ""
           }`}
         >
-          {isFuture ? (
-            <span
-              className="w-2 h-2 rounded-full shrink-0 ring-1 ring-white/70"
-              style={{ background: stage.color }}
-            />
-          ) : isDone ? (
-            <Check size={12} className="stroke-[3] shrink-0 text-white/90" />
-          ) : isCurrent ? (
-            <span className="w-2 h-2 rounded-full bg-white shrink-0 animate-pulse shadow-sm" />
-          ) : (
-            <Diamond size={11} className="fill-white/30 shrink-0" />
-          )}
+          {/* Left resize handle */}
+          <div
+            data-resize-handle="left"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              setDragState({
+                orderId: order._id,
+                stageKey: stage.key,
+                mode: "resize-start",
+                startX: e.clientX,
+                origStart: startNorm,
+                origEnd: endNorm,
+                previewStart: startNorm,
+                previewEnd: endNorm,
+              });
+            }}
+            className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize flex items-center justify-center bg-black/15 hover:bg-black/35 group-hover:opacity-100 opacity-60 transition-opacity z-10"
+            title="Przeciągnij, aby zmienić początek"
+          >
+            <div className="w-0.5 h-3.5 bg-white/80 rounded-full pointer-events-none" />
+          </div>
 
-          <span className="truncate">
-            {hasExplicitEnd
-              ? `${stage.label} (${spanDays}d)`
-              : `${stage.label} • ustaw koniec`}
-          </span>
+          {/* Milestone Icon and Label */}
+          <div className="flex items-center gap-1.5 truncate pointer-events-none px-3 font-medium">
+            {isFuture ? (
+              <span
+                className="w-2 h-2 rounded-full shrink-0 ring-1 ring-white/70"
+                style={{ background: stage.color }}
+              />
+            ) : isDone ? (
+              <Check size={12} className="stroke-[3] shrink-0 text-white/90" />
+            ) : isCurrent ? (
+              <span className="w-2 h-2 rounded-full bg-white shrink-0 animate-pulse shadow-sm" />
+            ) : (
+              <Diamond size={11} className="fill-white/30 shrink-0" />
+            )}
 
-          {hasChecklist && (
-            <span className="text-[9.5px] font-bold px-1.5 py-0.2 bg-black/25 rounded tracking-wide shrink-0 tabular-nums">
-              {progress!.done}/{progress!.total}
+            <span className="truncate">
+              {hasExplicitEnd
+                ? `${stage.label} (${spanDays}d)`
+                : `${stage.label} • ustaw koniec`}
             </span>
-          )}
 
-          {isCurrent && !isFuture && (
-            <span className="text-[9px] font-bold px-1.5 py-0.2 bg-white/25 rounded tracking-wide shrink-0 hidden sm:inline-block">
-              W TRAKCIE
-            </span>
-          )}
+            {hasChecklist && (
+              <span className="text-[9.5px] font-bold px-1.5 py-0.2 bg-black/25 rounded tracking-wide shrink-0 tabular-nums">
+                {progress!.done}/{progress!.total}
+              </span>
+            )}
+
+            {isCurrent && !isFuture && (
+              <span className="text-[9px] font-bold px-1.5 py-0.2 bg-white/25 rounded tracking-wide shrink-0 hidden sm:inline-block">
+                W TRAKCIE
+              </span>
+            )}
+          </div>
+
+          {/* Right resize handle */}
+          <div
+            data-resize-handle="right"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              setDragState({
+                orderId: order._id,
+                stageKey: stage.key,
+                mode: "resize-end",
+                startX: e.clientX,
+                origStart: startNorm,
+                origEnd: endNorm,
+                previewStart: startNorm,
+                previewEnd: endNorm,
+              });
+            }}
+            className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize flex items-center justify-center bg-black/15 hover:bg-black/35 group-hover:opacity-100 opacity-60 transition-opacity"
+            title="Przeciągnij, aby zmienić koniec (czas trwania)"
+          >
+            <div className="w-0.5 h-3.5 bg-white/80 rounded-full pointer-events-none" />
+          </div>
         </div>
 
-        {/* Checklist Progress Bar along bottom edge of Gantt bar */}
+        {/* Dedicated high-contrast Checklist Progress Bar directly below Gantt bar */}
         {hasChecklist && (
-          <div className="absolute bottom-0 left-0 right-0 h-[4px] bg-black/25 pointer-events-none">
+          <div
+            data-stage-bar="true"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedStageTarget({
+                order,
+                stageKey: stage.key,
+              });
+              setIsDrawerOpen(true);
+            }}
+            onMouseEnter={(e) =>
+              setHoveredBar({
+                order,
+                stage,
+                start: startNorm,
+                end: hasExplicitEnd ? endNorm : undefined,
+                x: e.clientX,
+                y: e.clientY,
+              })
+            }
+            onMouseMove={(e) =>
+              setHoveredBar((prev) =>
+                prev ? { ...prev, x: e.clientX, y: e.clientY } : null,
+              )
+            }
+            onMouseLeave={() => setHoveredBar(null)}
+            style={{
+              left: leftPx,
+              width: widthPx,
+              top: 44,
+              height: 6,
+              opacity: isDraggingThis ? 0.85 : 1,
+            }}
+            className="absolute z-10 rounded-full bg-slate-200 border border-slate-300/70 overflow-hidden cursor-pointer"
+          >
             <div
-              className="h-full transition-all duration-300"
+              className="h-full rounded-full transition-all duration-300"
               style={{
                 width: `${progressPct}%`,
-                background: progressPct === 100 ? "#4ade80" : "rgba(255, 255, 255, 0.92)",
+                minWidth: progressPct > 0 ? 4 : 0,
+                background: progressPct === 100 ? "#16a34a" : barBackground,
               }}
             />
           </div>
         )}
-
-        {/* Right resize handle */}
-        <div
-          data-resize-handle="right"
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            setDragState({
-              orderId: order._id,
-              stageKey: stage.key,
-              mode: "resize-end",
-              startX: e.clientX,
-              origStart: startNorm,
-              origEnd: endNorm,
-              previewStart: startNorm,
-              previewEnd: endNorm,
-            });
-          }}
-          className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize flex items-center justify-center bg-black/15 hover:bg-black/35 group-hover:opacity-100 opacity-60 transition-opacity"
-          title="Przeciągnij, aby zmienić koniec (czas trwania)"
-        >
-          <div className="w-0.5 h-3.5 bg-white/80 rounded-full pointer-events-none" />
-        </div>
-      </div>
+      </React.Fragment>
     );
   };
 
@@ -937,7 +970,7 @@ export default function ScheduleGantt() {
                       <div
                         className="flex"
                         style={{
-                          minHeight: 56,
+                          minHeight: 58,
                           background: "var(--card, #fff)",
                         }}
                       >
@@ -1086,11 +1119,11 @@ export default function ScheduleGantt() {
                         <div
                           style={{
                             width: timelineWidth,
-                            height: 56,
+                            height: 58,
                           }}
                           className="relative shrink-0 cursor-pointer"
                           onClick={(e) => {
-                            if ((e.target as HTMLElement).closest(".group")) return;
+                            if ((e.target as HTMLElement).closest("[data-stage-bar]")) return;
                             const rect = e.currentTarget.getBoundingClientRect();
                             const clickX = e.clientX - rect.left;
                             const clickedDayIndex = Math.floor(clickX / dayWidth);
