@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { requireRole, requireUser } from "./lib/auth";
 import {
   CORE_STATUS_KEYS,
@@ -118,6 +118,23 @@ export const saveStatuses = mutation({
     } else {
       await ctx.db.insert("crmConfig", { statuses: normalized });
     }
+  },
+});
+
+export const setStatusesInternal = internalMutation({
+  args: { statuses: v.array(statusDefValidator) },
+  handler: async (ctx, args) => {
+    const normalized: StatusDef[] = args.statuses.map((s) => ({
+      ...s,
+      isCore: CORE_KEY_SET.has(s.key),
+    }));
+    const existing = await ctx.db.query("crmConfig").first();
+    if (existing) {
+      await ctx.db.patch(existing._id, { statuses: normalized });
+    } else {
+      await ctx.db.insert("crmConfig", { statuses: normalized });
+    }
+    return normalized.length;
   },
 });
 
