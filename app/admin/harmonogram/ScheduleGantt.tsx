@@ -22,6 +22,7 @@ import {
   Minimize2,
   Plus,
   Search,
+  Star,
   Trash2,
   Tv,
   Users,
@@ -178,6 +179,48 @@ function computeInstallationRating(
   };
 }
 
+const RATING_FILTER_OPTIONS: Array<{ value: string; rating: number; hint: string }> = [
+  { value: "5", rating: 5, hint: "≥ 5k zł/d" },
+  { value: "4", rating: 4, hint: "≥ 4k zł/d" },
+  { value: "3", rating: 3, hint: "≥ 3k zł/d" },
+  { value: "2", rating: 2, hint: "≥ 2k zł/d" },
+  { value: "1", rating: 1, hint: "< 2k zł/d" },
+  { value: "0", rating: 0, hint: "≤ 0 zł/d" },
+];
+
+function getOrderEffectiveRating(order: ScheduleOrder): number | null {
+  if (order.profit === undefined) return null;
+  const rawStart = order.installationPhaseStartDate;
+  const rawEnd = order.installationPhaseEndDate;
+  if (rawStart || rawEnd) {
+    const startNorm = normalizeDayStart(rawStart ?? rawEnd!);
+    const endNorm = normalizeDayStart(rawEnd ?? startNorm);
+    const spanDays = Math.max(1, diffDays(startNorm, endNorm) + 1);
+    return computeInstallationRating(order.profit, spanDays)?.rating ?? null;
+  }
+  if (order.workDays && order.workDays > 0) {
+    return computeInstallationRating(order.profit, order.workDays)?.rating ?? null;
+  }
+  return null;
+}
+
+function renderRatingStars(rating: number, size = 10.5, inactiveClass = "text-white/30") {
+  return (
+    <span className="inline-flex items-center gap-[1.5px] shrink-0">
+      {[0, 1, 2, 3, 4].map((idx) => {
+        const filled = idx < rating;
+        return (
+          <Star
+            key={idx}
+            size={size}
+            className={filled ? "text-amber-400 fill-amber-400 shrink-0" : `${inactiveClass} shrink-0`}
+          />
+        );
+      })}
+    </span>
+  );
+}
+
 const WEEKDAY_SHORT = ["Nd", "Pn", "Wt", "Śr", "Cz", "Pt", "Sb"];
 
 export default function ScheduleGantt({
@@ -247,6 +290,11 @@ export default function ScheduleGantt({
     x: number;
     y: number;
   } | null>(null);
+  const [selectedRatings, setSelectedRatings] = useState<string[]>([]);
+  const [ratingFilterMenu, setRatingFilterMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [userFilterMenu, setUserFilterMenu] = useState<{
     x: number;
@@ -300,6 +348,7 @@ export default function ScheduleGantt({
   const addStageMenuRef = useRef<HTMLDivElement | null>(null);
   const userFilterMenuRef = useRef<HTMLDivElement | null>(null);
   const teamFilterMenuRef = useRef<HTMLDivElement | null>(null);
+  const ratingFilterMenuRef = useRef<HTMLDivElement | null>(null);
 
   const handleTimelinePanStart = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -346,7 +395,15 @@ export default function ScheduleGantt({
   }, [isPanning]);
 
   useEffect(() => {
-    if (!contextMenu && !addStageMenu && !userFilterMenu && !teamFilterMenu) return;
+    if (
+      !contextMenu &&
+      !addStageMenu &&
+      !userFilterMenu &&
+      !teamFilterMenu &&
+      !ratingFilterMenu
+    ) {
+      return;
+    }
 
     const handlePointerDownOutside = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -362,10 +419,14 @@ export default function ScheduleGantt({
       if (teamFilterMenuRef.current && teamFilterMenuRef.current.contains(target)) {
         return;
       }
+      if (ratingFilterMenuRef.current && ratingFilterMenuRef.current.contains(target)) {
+        return;
+      }
       setContextMenu(null);
       setAddStageMenu(null);
       setUserFilterMenu(null);
       setTeamFilterMenu(null);
+      setRatingFilterMenu(null);
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -373,6 +434,7 @@ export default function ScheduleGantt({
         setAddStageMenu(null);
         setUserFilterMenu(null);
         setTeamFilterMenu(null);
+        setRatingFilterMenu(null);
       }
     };
     const handleClose = () => {
@@ -380,6 +442,7 @@ export default function ScheduleGantt({
       setAddStageMenu(null);
       setUserFilterMenu(null);
       setTeamFilterMenu(null);
+      setRatingFilterMenu(null);
     };
 
     window.addEventListener("mousedown", handlePointerDownOutside);
@@ -393,7 +456,7 @@ export default function ScheduleGantt({
       window.removeEventListener("resize", handleClose);
       scrollEl?.removeEventListener("scroll", handleClose);
     };
-  }, [contextMenu, addStageMenu, userFilterMenu, teamFilterMenu]);
+  }, [contextMenu, addStageMenu, userFilterMenu, teamFilterMenu, ratingFilterMenu]);
 
   const handleDeleteStageBar = useCallback(
     async (order: ScheduleOrder, stage: (typeof STAGES)[number]) => {
@@ -517,6 +580,14 @@ export default function ScheduleGantt({
     );
   }, []);
 
+  const toggleRatingFilter = useCallback((ratingVal: string) => {
+    setSelectedRatings((prev) =>
+      prev.includes(ratingVal)
+        ? prev.filter((v) => v !== ratingVal)
+        : [...prev, ratingVal],
+    );
+  }, []);
+
   const filteredOrders = useMemo(() => {
     if (!orders) return [];
     const q = searchTerm.trim().toLowerCase();
@@ -536,6 +607,14 @@ export default function ScheduleGantt({
           return false;
         }
       }
+      if (selectedRatings.length > 0) {
+        const effRating = getOrderEffectiveRating(o);
+        if (effRating === null) {
+          if (!selectedRatings.includes("__none__")) return false;
+        } else if (!selectedRatings.includes(String(effRating))) {
+          return false;
+        }
+      }
       if (selectedUserIds.length > 0) {
         const ids = (o.assignees ?? []).map((a) => String(a.id));
         if (ids.length === 0) {
@@ -550,12 +629,13 @@ export default function ScheduleGantt({
       }
       return true;
     });
-  }, [orders, stageFilter, selectedTeamIds, selectedUserIds, searchTerm]);
+  }, [orders, stageFilter, selectedTeamIds, selectedRatings, selectedUserIds, searchTerm]);
 
   const hasActiveFilters =
     Boolean(searchTerm.trim()) ||
     stageFilter !== "all" ||
     selectedTeamIds.length > 0 ||
+    selectedRatings.length > 0 ||
     selectedUserIds.length > 0;
 
   const scrollToToday = useCallback(() => {
@@ -1017,16 +1097,22 @@ export default function ScheduleGantt({
 
             {installationRating && (
               <span
-                className="inline-flex items-center gap-1 text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-slate-950/60 border border-white/25 tracking-wide shrink-0 tabular-nums"
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-slate-950/50 border border-white/20 shrink-0 tabular-nums"
                 title={`Rating: ${installationRating.rating}/5 (${installationRating.dailyProfit.toLocaleString("pl-PL")} zł/d)`}
               >
-                <span
-                  className="w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ background: installationRating.color }}
-                />
-                <span style={{ color: installationRating.color }}>
-                  {installationRating.rating}/5
-                </span>
+                {widthPx >= 130 ? (
+                  renderRatingStars(installationRating.rating, 10)
+                ) : (
+                  <>
+                    <Star
+                      size={10}
+                      className="text-amber-400 fill-amber-400 shrink-0"
+                    />
+                    <span className="text-[9.5px] font-bold text-amber-300 leading-none">
+                      {installationRating.rating}
+                    </span>
+                  </>
+                )}
               </span>
             )}
           </div>
@@ -1316,6 +1402,73 @@ export default function ScheduleGantt({
             </div>
           )}
 
+          {/* Rating multiselect filter */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setContextMenu(null);
+                setAddStageMenu(null);
+                setUserFilterMenu(null);
+                setTeamFilterMenu(null);
+                const rect = e.currentTarget.getBoundingClientRect();
+                setRatingFilterMenu((prev) =>
+                  prev ? null : { x: rect.left, y: rect.bottom + 6 },
+                );
+              }}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                selectedRatings.length > 0
+                  ? "bg-slate-900 text-white border-slate-900 hover:bg-slate-800"
+                  : "hover:bg-slate-100"
+              }`}
+              style={
+                selectedRatings.length > 0
+                  ? undefined
+                  : {
+                      borderColor: "var(--line)",
+                      background: "var(--background, #f8fafc)",
+                      color: "var(--text-strong)",
+                    }
+              }
+              title="Filtruj po ratingu zlecenia"
+            >
+              <Star
+                size={12}
+                className="text-amber-400 fill-amber-400 shrink-0"
+              />
+              <span>
+                {selectedRatings.length === 0
+                  ? "Rating"
+                  : selectedRatings.length === 1
+                  ? selectedRatings[0] === "__none__"
+                    ? "Brak ratingu"
+                    : `${selectedRatings[0]}★`
+                  : `Rating (${selectedRatings.length})`}
+              </span>
+              <ChevronDown
+                size={12}
+                className={`shrink-0 transition-transform ${
+                  ratingFilterMenu ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            {selectedRatings.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedRatings([]);
+                }}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Wyczyść filtr ratingu"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
           {/* Zoom */}
           <div
             className="inline-flex rounded-lg border p-0.5"
@@ -1473,6 +1626,7 @@ export default function ScheduleGantt({
                 setSearchTerm("");
                 setStageFilter("all");
                 setSelectedTeamIds([]);
+                setSelectedRatings([]);
                 setSelectedUserIds([]);
               }}
               className="mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
@@ -1949,11 +2103,14 @@ export default function ScheduleGantt({
                                     {ghostStage.label} ({ghostDays}d)
                                   </span>
                                   {ghostRating && (
-                                    <span
-                                      className="inline-flex items-center gap-1 text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-slate-900/85 shrink-0 tabular-nums"
-                                      style={{ color: ghostRating.color }}
-                                    >
-                                      {ghostRating.rating}/5
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-900/85 shrink-0 tabular-nums">
+                                      <Star
+                                        size={9.5}
+                                        className="text-amber-400 fill-amber-400 shrink-0"
+                                      />
+                                      <span className="text-[9.5px] font-bold text-amber-300 leading-none">
+                                        {ghostRating.rating}
+                                      </span>
                                     </span>
                                   )}
                                   <span className="text-[10px] font-mono opacity-85 shrink-0">
@@ -2006,16 +2163,10 @@ export default function ScheduleGantt({
               const r = computeInstallationRating(hoveredBar.order.profit, span);
               if (!r) return null;
               return (
-                <div
-                  className="text-[11px] mt-1 font-semibold flex items-center gap-1.5"
-                  style={{ color: r.color }}
-                >
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ background: r.color }}
-                  />
+                <div className="text-[11px] mt-1 font-semibold flex items-center gap-1.5 text-amber-300">
+                  {renderRatingStars(r.rating, 11, "text-white/25")}
                   <span>
-                    Rating: {r.rating}/5 • {r.dailyProfit.toLocaleString("pl-PL")} zł/d
+                    {r.dailyProfit.toLocaleString("pl-PL")} zł/d
                     {hoveredBar.order.profit !== undefined
                       ? ` (zysk ${hoveredBar.order.profit.toLocaleString("pl-PL")} zł)`
                       : ""}
@@ -2331,6 +2482,94 @@ export default function ScheduleGantt({
                 </button>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Rating Multiselect Filter Popover Menu */}
+      {ratingFilterMenu && (
+        <div
+          ref={ratingFilterMenuRef}
+          role="menu"
+          style={{
+            left:
+              typeof window !== "undefined"
+                ? Math.min(ratingFilterMenu.x, window.innerWidth - 240)
+                : ratingFilterMenu.x,
+            top:
+              typeof window !== "undefined"
+                ? Math.min(ratingFilterMenu.y, window.innerHeight - 300)
+                : ratingFilterMenu.y,
+          }}
+          className="fixed z-50 min-w-[220px] rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-[0_12px_32px_-8px_rgba(15,23,42,0.24),0_2px_6px_rgba(15,23,42,0.08)] p-1.5 text-xs text-slate-700 select-none"
+        >
+          <div className="flex items-center justify-between px-2.5 py-1 text-[11px] font-medium text-slate-400">
+            <span>Filtruj po ratingu</span>
+            {selectedRatings.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedRatings([])}
+                className="text-[11px] font-semibold text-slate-500 hover:text-slate-900 cursor-pointer"
+              >
+                Wyczyść
+              </button>
+            )}
+          </div>
+          <div className="my-1 border-t border-slate-200/80" />
+          <div className="space-y-0.5">
+            {RATING_FILTER_OPTIONS.map((opt) => {
+              const isSelected = selectedRatings.includes(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={isSelected}
+                  onClick={() => toggleRatingFilter(opt.value)}
+                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors cursor-pointer ${
+                    isSelected
+                      ? "bg-slate-900 text-white font-semibold"
+                      : "text-slate-700 font-medium hover:bg-slate-100"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    {renderRatingStars(
+                      opt.rating,
+                      11,
+                      isSelected ? "text-white/25" : "text-slate-300",
+                    )}
+                    <span
+                      className={`text-[10.5px] ${
+                        isSelected ? "text-slate-300" : "text-slate-400"
+                      }`}
+                    >
+                      {opt.hint}
+                    </span>
+                  </span>
+                  {isSelected && (
+                    <Check size={13} className="stroke-[2.5] shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+
+            <div className="my-1 border-t border-slate-100" />
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={selectedRatings.includes("__none__")}
+              onClick={() => toggleRatingFilter("__none__")}
+              className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors cursor-pointer ${
+                selectedRatings.includes("__none__")
+                  ? "bg-slate-900 text-white font-semibold"
+                  : "text-slate-500 font-medium hover:bg-slate-100 hover:text-slate-800"
+              }`}
+            >
+              <span>Brak ratingu</span>
+              {selectedRatings.includes("__none__") && (
+                <Check size={13} className="stroke-[2.5] shrink-0" />
+              )}
+            </button>
           </div>
         </div>
       )}
