@@ -242,7 +242,11 @@ export default function ScheduleGantt({
     x: number;
     y: number;
   } | null>(null);
-  const [recentlyCreatedKey, setRecentlyCreatedKey] = useState<string | null>(null);
+  const [placingStage, setPlacingStage] = useState<{
+    order: ScheduleOrder;
+    stageKey: StageKey;
+    hoverDayTs: number | null;
+  } | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     order: ScheduleOrder;
     stage: (typeof STAGES)[number];
@@ -655,60 +659,52 @@ export default function ScheduleGantt({
   const todayOffsetDays = diffDays(windowStartTs, todayTs);
   const timelineWidth = totalDays * dayWidth;
 
-  const handleCreateStageBar = async (
-    order: ScheduleOrder,
-    stageKey: StageKey,
-    preferredStartTs?: number,
-  ) => {
-    const stage = STAGE_BY_KEY[stageKey];
-    const defaultDays = stageKey === "kitting" ? 3 : 2;
+  useEffect(() => {
+    if (!placingStage) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPlacingStage(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [placingStage]);
 
-    let startTs: number;
-    if (preferredStartTs) {
-      startTs = normalizeDayStart(preferredStartTs);
-    } else if (stageKey === "installation" && order.completionEndDate) {
-      startTs = normalizeDayStart(addDays(order.completionEndDate, 1));
-    } else {
-      startTs = todayTs;
-    }
+  const handlePlaceStageBar = useCallback(
+    async (order: ScheduleOrder, stageKey: StageKey, startDayTs: number) => {
+      const stage = STAGE_BY_KEY[stageKey];
+      const defaultDays = stageKey === "kitting" ? 3 : 2;
+      const startTs = normalizeDayStart(startDayTs);
+      const endTs = normalizeDayStart(addDays(startTs, defaultDays - 1));
+      const pendingKey = `${order._id}-${stageKey}`;
 
-    const endTs = normalizeDayStart(addDays(startTs, defaultDays - 1));
+      setPlacingStage(null);
+      setPendingDates((prev) => ({
+        ...prev,
+        [pendingKey]: { start: startTs, end: endTs },
+      }));
 
-    // Przewiń oś czasu do nowo utworzonego obiektu
-    const offsetDays = diffDays(windowStartTs, startTs);
-    if (timelineScrollRef.current) {
-      if (offsetDays < 0 || offsetDays > totalDays - 5) {
-        setWindowStartTs(addDays(startTs, -7));
-        requestAnimationFrame(() => {
-          if (timelineScrollRef.current) {
-            timelineScrollRef.current.scrollLeft = 7 * dayWidth;
-          }
+      try {
+        await updateOrder({
+          orderId: order._id,
+          [stage.startField]: startTs,
+          [stage.endField]: endTs,
         });
-      } else {
-        timelineScrollRef.current.scrollTo({
-          left: Math.max(0, (offsetDays - 3) * dayWidth),
-          behavior: "smooth",
+        toast.success(
+          `Dodano: ${stage.label} (${formatPlDate(startTs)} – ${formatPlDate(endTs)})`,
+        );
+      } catch (err) {
+        console.error(err);
+        toast.error("Nie udało się zapisać terminu.");
+      } finally {
+        setPendingDates((prev) => {
+          if (!(pendingKey in prev)) return prev;
+          const next = { ...prev };
+          delete next[pendingKey];
+          return next;
         });
       }
-    }
-
-    setRecentlyCreatedKey(`${order._id}-${stageKey}`);
-    setTimeout(() => setRecentlyCreatedKey(null), 2500);
-
-    try {
-      await updateOrder({
-        orderId: order._id,
-        [stage.startField]: startTs,
-        [stage.endField]: endTs,
-      });
-      toast.success(
-        `Zaplanowano kamień milowy: ${stage.label} (${defaultDays} dni). Możesz przeciągać i rozciągać pasek na osi czasu.`,
-      );
-    } catch (err) {
-      console.error(err);
-      toast.error("Nie udało się zapisać terminu.");
-    }
-  };
+    },
+    [updateOrder],
+  );
 
   const renderConnectors = (order: ScheduleOrder) => {
     const connectors: React.ReactNode[] = [];
@@ -857,7 +853,6 @@ export default function ScheduleGantt({
     const stageIdx = STAGE_ORDER[stage.key];
     const isDone = stageIdx < currentStageIdx;
     const isCurrent = stageIdx === currentStageIdx;
-    const isRecent = recentlyCreatedKey === `${order._id}-${stage.key}`;
     const barBackground =
       stage.key === "installation" && order.installationTeamColor
         ? order.installationTeamColor
@@ -932,13 +927,7 @@ export default function ScheduleGantt({
             isDraggingThis
               ? "transition-none z-20 shadow-lg"
               : "transition-[left,width,box-shadow,opacity] duration-150 ease-out"
-          } ${
-            isRecent
-              ? "ring-2 ring-white ring-offset-2 ring-offset-cyan-500 shadow-lg animate-pulse"
-              : isCurrent
-              ? "ring-2 ring-white/90 shadow-md"
-              : ""
-          }`}
+          } ${isCurrent ? "ring-2 ring-white/90 shadow-md" : ""}`}
         >
           {/* Left resize handle */}
           <div
@@ -1637,17 +1626,30 @@ export default function ScheduleGantt({
                           .join(", ")})`
                       : assigneeColors[0];
 
+                  const isPlacingThisRow = placingStage?.order._id === order._id;
+                  const isDimmedByPlacement = Boolean(placingStage && !isPlacingThisRow);
+
                   return (
                     <div
                       key={order._id}
-                      className="border-b transition-colors hover:bg-slate-50/50"
+                      className={`border-b transition-opacity duration-150 ${
+                        isDimmedByPlacement
+                          ? "opacity-45"
+                          : isPlacingThisRow
+                          ? "bg-sky-50/40"
+                          : "hover:bg-slate-50/50"
+                      }`}
                       style={{ borderColor: "var(--line, #e5e7eb)" }}
                     >
                       <div
                         className="flex"
                         style={{
                           minHeight: 58,
-                          background: "var(--card, #fff)",
+                          background: isPlacingThisRow
+                            ? placingStage?.stageKey === "installation"
+                              ? "rgba(5, 150, 105, 0.04)"
+                              : "rgba(2, 132, 199, 0.04)"
+                            : "var(--card, #fff)",
                         }}
                       >
                         {/* Left sticky cell */}
@@ -1699,11 +1701,17 @@ export default function ScheduleGantt({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setContextMenu(null);
+                                if (isPlacingThisRow) {
+                                  setPlacingStage(null);
+                                  return;
+                                }
                                 if (unscheduledStages.length === 1) {
-                                  void handleCreateStageBar(
+                                  setAddStageMenu(null);
+                                  setPlacingStage({
                                     order,
-                                    unscheduledStages[0].key,
-                                  );
+                                    stageKey: unscheduledStages[0].key,
+                                    hoverDayTs: null,
+                                  });
                                   return;
                                 }
                                 const rect = e.currentTarget.getBoundingClientRect();
@@ -1719,13 +1727,19 @@ export default function ScheduleGantt({
                                 );
                               }}
                               title={
-                                unscheduledStages.length === 1
-                                  ? `Dodaj etap: ${unscheduledStages[0].label}`
+                                isPlacingThisRow
+                                  ? "Anuluj umieszczanie etapu (Esc)"
+                                  : unscheduledStages.length === 1
+                                  ? `Umieść na osi: ${unscheduledStages[0].label}`
                                   : "Dodaj etap na oś czasu"
                               }
-                              className="w-6 h-6 shrink-0 rounded-md border border-slate-200/90 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800 hover:border-slate-300 flex items-center justify-center transition-colors cursor-pointer"
+                              className={`w-6 h-6 shrink-0 rounded-md border flex items-center justify-center transition-colors cursor-pointer ${
+                                isPlacingThisRow
+                                  ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+                                  : "border-slate-200/90 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800 hover:border-slate-300"
+                              }`}
                             >
-                              <Plus size={13} />
+                              {isPlacingThisRow ? <X size={13} /> : <Plus size={13} />}
                             </button>
                           )}
                         </div>
@@ -1736,9 +1750,61 @@ export default function ScheduleGantt({
                             width: timelineWidth,
                             height: 58,
                           }}
-                          onPointerDown={handleTimelinePanStart}
+                          onPointerDown={(e) => {
+                            if (isPlacingThisRow && placingStage) {
+                              e.stopPropagation();
+                              if (e.button !== 0) {
+                                setPlacingStage(null);
+                                return;
+                              }
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const dayIdx = Math.floor(
+                                (e.clientX - rect.left) / dayWidth,
+                              );
+                              if (dayIdx >= 0 && dayIdx < totalDays) {
+                                void handlePlaceStageBar(
+                                  order,
+                                  placingStage.stageKey,
+                                  addDays(windowStartTs, dayIdx),
+                                );
+                              }
+                              return;
+                            }
+                            handleTimelinePanStart(e);
+                          }}
+                          onPointerMove={(e) => {
+                            if (!isPlacingThisRow) return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const dayIdx = Math.floor(
+                              (e.clientX - rect.left) / dayWidth,
+                            );
+                            if (dayIdx >= 0 && dayIdx < totalDays) {
+                              const nextTs = addDays(windowStartTs, dayIdx);
+                              setPlacingStage((prev) =>
+                                prev && prev.hoverDayTs !== nextTs
+                                  ? { ...prev, hoverDayTs: nextTs }
+                                  : prev,
+                              );
+                            }
+                          }}
+                          onPointerLeave={() => {
+                            if (!isPlacingThisRow) return;
+                            setPlacingStage((prev) =>
+                              prev ? { ...prev, hoverDayTs: null } : null,
+                            );
+                          }}
+                          onContextMenu={(e) => {
+                            if (isPlacingThisRow) {
+                              e.preventDefault();
+                              setPlacingStage(null);
+                            }
+                          }}
                           className={`relative shrink-0 select-none ${
-                            isPanning ? "cursor-grabbing" : "cursor-grab"
+                            isPlacingThisRow
+                              ? "cursor-crosshair"
+                              : isPanning
+                              ? "cursor-grabbing"
+                              : "cursor-grab"
                           }`}
                         >
                           {/* Day gridlines */}
@@ -1772,6 +1838,65 @@ export default function ScheduleGantt({
                           ).map((stage) =>
                             renderStageBar(order, stage, currentStageIdx),
                           )}
+
+                          {/* Ghost preview bar during placement mode */}
+                          {isPlacingThisRow &&
+                            placingStage &&
+                            placingStage.hoverDayTs !== null &&
+                            (() => {
+                              const ghostStage = STAGE_BY_KEY[placingStage.stageKey];
+                              const ghostDays =
+                                placingStage.stageKey === "kitting" ? 3 : 2;
+                              const ghostLeftPx =
+                                diffDays(windowStartTs, placingStage.hoverDayTs) *
+                                dayWidth;
+                              const ghostWidthPx = Math.max(
+                                dayWidth,
+                                ghostDays * dayWidth,
+                              );
+                              const ghostColor =
+                                placingStage.stageKey === "installation" &&
+                                order.installationTeamColor
+                                  ? order.installationTeamColor
+                                  : ghostStage.color;
+                              const ghostEndTs = addDays(
+                                placingStage.hoverDayTs,
+                                ghostDays - 1,
+                              );
+                              const shortStart = new Date(
+                                placingStage.hoverDayTs,
+                              ).toLocaleDateString("pl-PL", {
+                                day: "2-digit",
+                                month: "2-digit",
+                              });
+                              const shortEnd = new Date(
+                                ghostEndTs,
+                              ).toLocaleDateString("pl-PL", {
+                                day: "2-digit",
+                                month: "2-digit",
+                              });
+                              return (
+                                <div
+                                  style={{
+                                    left: ghostLeftPx,
+                                    width: ghostWidthPx,
+                                    top: 8,
+                                    height: 32,
+                                    background: `${ghostColor}30`,
+                                    border: `2px dashed ${ghostColor}`,
+                                    color: ghostColor,
+                                  }}
+                                  className="absolute z-30 rounded-lg px-2.5 flex items-center gap-1.5 text-[11px] font-bold pointer-events-none select-none overflow-hidden shadow-xs"
+                                >
+                                  <span className="truncate">
+                                    {ghostStage.label} ({ghostDays}d)
+                                  </span>
+                                  <span className="text-[10px] font-mono opacity-85 shrink-0">
+                                    {shortStart}–{shortEnd}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                         </div>
                       </div>
                     </div>
@@ -1916,7 +2041,11 @@ export default function ScheduleGantt({
                 onClick={() => {
                   const targetOrder = addStageMenu.order;
                   setAddStageMenu(null);
-                  void handleCreateStageBar(targetOrder, st.key);
+                  setPlacingStage({
+                    order: targetOrder,
+                    stageKey: st.key,
+                    hoverDayTs: null,
+                  });
                 }}
                 className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-left hover:bg-slate-100 active:bg-slate-200/70 transition-colors cursor-pointer"
               >
@@ -2113,6 +2242,39 @@ export default function ScheduleGantt({
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Placement Mode Floating Helper Pill */}
+      {placingStage && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-3.5 py-2 rounded-full bg-slate-900/95 text-white text-xs shadow-xl border border-white/10 backdrop-blur-md">
+          <span
+            className="w-2.5 h-2.5 rounded-full shrink-0"
+            style={{
+              background:
+                placingStage.stageKey === "installation" &&
+                placingStage.order.installationTeamColor
+                  ? placingStage.order.installationTeamColor
+                  : STAGE_BY_KEY[placingStage.stageKey].color,
+            }}
+          />
+          <span>
+            Kliknij dzień w wierszu{" "}
+            <strong className="font-semibold">
+              {placingStage.order.customText?.trim() || placingStage.order.name}
+            </strong>
+            , aby umieścić:{" "}
+            <strong className="font-semibold">
+              {STAGE_BY_KEY[placingStage.stageKey].label}
+            </strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => setPlacingStage(null)}
+            className="ml-1 px-2 py-0.5 rounded-full bg-white/15 hover:bg-white/25 text-[11px] font-semibold transition-colors cursor-pointer"
+          >
+            Anuluj (Esc)
+          </button>
         </div>
       )}
 
