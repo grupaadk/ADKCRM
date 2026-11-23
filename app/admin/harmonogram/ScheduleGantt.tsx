@@ -977,10 +977,6 @@ export default function ScheduleGantt({
     const progressPct = hasChecklist
       ? Math.round((progress!.done / progress!.total) * 100)
       : 0;
-    const installationRating =
-      stage.key === "installation"
-        ? computeInstallationRating(order.profit, spanDays)
-        : null;
 
     return (
       <React.Fragment key={stage.key}>
@@ -1092,27 +1088,6 @@ export default function ScheduleGantt({
             {hasChecklist && (
               <span className="text-[9.5px] font-bold px-1.5 py-0.2 bg-black/25 rounded tracking-wide shrink-0 tabular-nums">
                 {progress!.done}/{progress!.total}
-              </span>
-            )}
-
-            {installationRating && (
-              <span
-                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-slate-950/50 border border-white/20 shrink-0 tabular-nums"
-                title={`Rating: ${installationRating.rating}/5 (${installationRating.dailyProfit.toLocaleString("pl-PL")} zł/d)`}
-              >
-                {widthPx >= 130 ? (
-                  renderRatingStars(installationRating.rating, 10)
-                ) : (
-                  <>
-                    <Star
-                      size={10}
-                      className="text-amber-400 fill-amber-400 shrink-0"
-                    />
-                    <span className="text-[9.5px] font-bold text-amber-300 leading-none">
-                      {installationRating.rating}
-                    </span>
-                  </>
-                )}
               </span>
             )}
           </div>
@@ -1836,6 +1811,30 @@ export default function ScheduleGantt({
                   const isPlacingThisRow = placingStage?.order._id === order._id;
                   const isDimmedByPlacement = Boolean(placingStage && !isPlacingThisRow);
 
+                  const isDraggingInst =
+                    dragState?.orderId === order._id &&
+                    dragState.stageKey === "installation";
+                  const pendingInst = pendingDates[`${order._id}-installation`];
+                  const liveInstStart = isDraggingInst
+                    ? dragState.previewStart
+                    : (pendingInst?.start ?? order.installationPhaseStartDate);
+                  const liveInstEnd = isDraggingInst
+                    ? dragState.previewEnd
+                    : (pendingInst?.end ?? order.installationPhaseEndDate);
+                  const liveOrderRating = (() => {
+                    if (order.profit === undefined) return null;
+                    if (liveInstStart || liveInstEnd) {
+                      const s = normalizeDayStart(liveInstStart ?? liveInstEnd!);
+                      const e = normalizeDayStart(liveInstEnd ?? s);
+                      const d = Math.max(1, diffDays(s, e) + 1);
+                      return computeInstallationRating(order.profit, d);
+                    }
+                    if (order.workDays && order.workDays > 0) {
+                      return computeInstallationRating(order.profit, order.workDays);
+                    }
+                    return null;
+                  })();
+
                   return (
                     <div
                       key={order._id}
@@ -1876,10 +1875,10 @@ export default function ScheduleGantt({
                             />
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center justify-between gap-1.5">
                               <Link
                                 href={`/admin/klient/${order.clientId}/zlecenie/${order._id}`}
-                                className="text-xs font-bold hover:underline truncate inline-flex items-center gap-1"
+                                className="text-xs font-bold hover:underline truncate inline-flex items-center gap-1 min-w-0"
                                 style={{ color: "var(--text-strong)" }}
                                 title={order.customText?.trim() || order.name}
                               >
@@ -1888,6 +1887,18 @@ export default function ScheduleGantt({
                                 </span>
                                 <ExternalLink size={10} className="opacity-50 shrink-0" />
                               </Link>
+                              {liveOrderRating && (
+                                <span
+                                  className="inline-flex items-center shrink-0"
+                                  title={`Rating: ${liveOrderRating.rating}/5 • ${liveOrderRating.dailyProfit.toLocaleString("pl-PL")} zł/d`}
+                                >
+                                  {renderRatingStars(
+                                    liveOrderRating.rating,
+                                    10.5,
+                                    "text-slate-200",
+                                  )}
+                                </span>
+                              )}
                             </div>
                             <div
                               className="text-[11px] truncate mt-0.5"
