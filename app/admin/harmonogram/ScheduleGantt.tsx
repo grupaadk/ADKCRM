@@ -179,10 +179,57 @@ export default function ScheduleGantt() {
     y: number;
   } | null>(null);
 
+  const [isPanning, setIsPanning] = useState(false);
+
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const panRef = useRef<{ startX: number; startScrollLeft: number } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const addStageMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const handleTimelinePanStart = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      if ((e.target as HTMLElement).closest("[data-stage-bar]")) return;
+      const el = timelineScrollRef.current;
+      if (!el) return;
+      e.preventDefault();
+      setContextMenu(null);
+      setAddStageMenu(null);
+      setHoveredBar(null);
+      panRef.current = {
+        startX: e.clientX,
+        startScrollLeft: el.scrollLeft,
+      };
+      setIsPanning(true);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isPanning) return;
+
+    const handlePointerMove = (e: PointerEvent) => {
+      const pan = panRef.current;
+      const el = timelineScrollRef.current;
+      if (!pan || !el) return;
+      el.scrollLeft = pan.startScrollLeft - (e.clientX - pan.startX);
+    };
+
+    const handlePointerUp = () => {
+      panRef.current = null;
+      setIsPanning(false);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [isPanning]);
 
   useEffect(() => {
     if (!contextMenu && !addStageMenu) return;
@@ -931,7 +978,7 @@ export default function ScheduleGantt() {
           {/* Synchronized vertical scroll container */}
           <div
             ref={timelineScrollRef}
-            className="flex-1 overflow-auto relative"
+            className={`flex-1 overflow-auto relative ${isPanning ? "cursor-grabbing select-none" : ""}`}
             style={{ background: "var(--background, #f8fafc)" }}
           >
             <div style={{ minWidth: LEFT_PANEL_WIDTH + timelineWidth }} className="flex flex-col">
@@ -957,7 +1004,13 @@ export default function ScheduleGantt() {
                 </div>
 
                 {/* Timeline Header */}
-                <div style={{ width: timelineWidth }} className="flex flex-col shrink-0">
+                <div
+                  style={{ width: timelineWidth }}
+                  onPointerDown={handleTimelinePanStart}
+                  className={`flex flex-col shrink-0 select-none ${
+                    isPanning ? "cursor-grabbing" : "cursor-grab"
+                  }`}
+                >
                   {/* Months row */}
                   <div className="flex border-b" style={{ borderColor: "var(--line)" }}>
                     {monthGroups.map((mg) => (
@@ -1138,7 +1191,10 @@ export default function ScheduleGantt() {
                             width: timelineWidth,
                             height: 58,
                           }}
-                          className="relative shrink-0"
+                          onPointerDown={handleTimelinePanStart}
+                          className={`relative shrink-0 select-none ${
+                            isPanning ? "cursor-grabbing" : "cursor-grab"
+                          }`}
                         >
                           {/* Day gridlines */}
                           <div className="absolute inset-0 flex pointer-events-none">
@@ -1180,7 +1236,7 @@ export default function ScheduleGantt() {
       )}
 
       {/* Hover Tooltip */}
-      {hoveredBar && !dragState && !contextMenu && (
+      {hoveredBar && !dragState && !contextMenu && !isPanning && (
         <div
           className="fixed z-50 pointer-events-none rounded-lg px-3 py-2 text-xs shadow-lg border"
           style={{
