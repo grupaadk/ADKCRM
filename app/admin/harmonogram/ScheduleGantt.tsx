@@ -11,6 +11,7 @@ import {
   Calendar,
   CalendarRange,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Diamond,
@@ -19,6 +20,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Users,
   X,
 } from "lucide-react";
 
@@ -149,6 +151,11 @@ export default function ScheduleGantt() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [teamFilter, setTeamFilter] = useState<string>("all");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [userFilterMenu, setUserFilterMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [zoom, setZoom] = useState<ZoomLevel>("day");
   const [windowStartTs, setWindowStartTs] = useState<number>(() =>
     addDays(normalizeDayStart(Date.now()), -14),
@@ -191,6 +198,7 @@ export default function ScheduleGantt() {
   const panRef = useRef<{ startX: number; startScrollLeft: number } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const addStageMenuRef = useRef<HTMLDivElement | null>(null);
+  const userFilterMenuRef = useRef<HTMLDivElement | null>(null);
 
   const handleTimelinePanStart = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -237,7 +245,7 @@ export default function ScheduleGantt() {
   }, [isPanning]);
 
   useEffect(() => {
-    if (!contextMenu && !addStageMenu) return;
+    if (!contextMenu && !addStageMenu && !userFilterMenu) return;
 
     const handlePointerDownOutside = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -247,18 +255,24 @@ export default function ScheduleGantt() {
       if (addStageMenuRef.current && addStageMenuRef.current.contains(target)) {
         return;
       }
+      if (userFilterMenuRef.current && userFilterMenuRef.current.contains(target)) {
+        return;
+      }
       setContextMenu(null);
       setAddStageMenu(null);
+      setUserFilterMenu(null);
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setContextMenu(null);
         setAddStageMenu(null);
+        setUserFilterMenu(null);
       }
     };
     const handleClose = () => {
       setContextMenu(null);
       setAddStageMenu(null);
+      setUserFilterMenu(null);
     };
 
     window.addEventListener("mousedown", handlePointerDownOutside);
@@ -272,7 +286,7 @@ export default function ScheduleGantt() {
       window.removeEventListener("resize", handleClose);
       scrollEl?.removeEventListener("scroll", handleClose);
     };
-  }, [contextMenu, addStageMenu]);
+  }, [contextMenu, addStageMenu, userFilterMenu]);
 
   const handleDeleteStageBar = useCallback(
     async (order: ScheduleOrder, stage: (typeof STAGES)[number]) => {
@@ -341,18 +355,64 @@ export default function ScheduleGantt() {
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [orders]);
 
+  const availableUsers = useMemo(() => {
+    if (!orders) return [];
+    const map = new Map<string, { id: string; name: string; color?: string }>();
+    for (const o of orders) {
+      for (const a of o.assignees ?? []) {
+        const id = String(a.id);
+        if (!map.has(id)) {
+          map.set(id, {
+            id,
+            name: a.name?.trim() || "Użytkownik",
+            color: a.color,
+          });
+        }
+      }
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, "pl"),
+    );
+  }, [orders]);
+
+  const hasUnassignedOrders = useMemo(() => {
+    if (!orders) return false;
+    return orders.some((o) => !o.assignees || o.assignees.length === 0);
+  }, [orders]);
+
+  const toggleUserFilter = useCallback((userId: string) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId],
+    );
+  }, []);
+
   const filteredOrders = useMemo(() => {
     if (!orders) return [];
     const q = searchTerm.trim().toLowerCase();
     return orders.filter((o) => {
       if (teamFilter !== "all" && o.installationTeamId !== teamFilter) return false;
+      if (selectedUserIds.length > 0) {
+        const ids = (o.assignees ?? []).map((a) => String(a.id));
+        if (ids.length === 0) {
+          if (!selectedUserIds.includes("__none__")) return false;
+        } else if (!ids.some((id) => selectedUserIds.includes(id))) {
+          return false;
+        }
+      }
       if (q) {
         const hay = `${o.customText ?? ""} ${o.name} ${o.clientName} ${o.investmentCity}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [orders, teamFilter, searchTerm]);
+  }, [orders, teamFilter, selectedUserIds, searchTerm]);
+
+  const hasActiveFilters =
+    Boolean(searchTerm.trim()) ||
+    teamFilter !== "all" ||
+    selectedUserIds.length > 0;
 
   const scrollToToday = useCallback(() => {
     const el = timelineScrollRef.current;
@@ -1080,6 +1140,19 @@ export default function ScheduleGantt() {
           <p className="text-xs" style={{ color: "var(--text-mute)" }}>
             Widok uwzględnia wyłącznie zlecenia w realizacji (Kompletacja, Montaż).
           </p>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm("");
+                setTeamFilter("all");
+                setSelectedUserIds([]);
+              }}
+              className="mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Wyczyść filtry
+            </button>
+          )}
         </div>
       ) : (
         <div className="flex-1 flex min-h-0 overflow-hidden">
@@ -1100,7 +1173,7 @@ export default function ScheduleGantt() {
               >
                 {/* Sticky top-left corner */}
                 <div
-                  className="sticky left-0 z-30 shrink-0 px-3.5 py-2 border-r flex items-center text-[11px] font-bold uppercase tracking-wider shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
+                  className="sticky left-0 z-30 shrink-0 px-3.5 py-2 border-r flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-wider shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
                   style={{
                     width: LEFT_PANEL_WIDTH,
                     borderColor: "var(--line, #e5e7eb)",
@@ -1108,7 +1181,82 @@ export default function ScheduleGantt() {
                     color: "var(--text-mute)",
                   }}
                 >
-                  <span>Zlecenie / Klient</span>
+                  <span className="truncate">Zlecenie / Klient</span>
+                  {(availableUsers.length > 0 || hasUnassignedOrders) && (
+                    <div className="flex items-center gap-1 shrink-0 normal-case tracking-normal">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setContextMenu(null);
+                          setAddStageMenu(null);
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setUserFilterMenu((prev) =>
+                            prev ? null : { x: rect.left, y: rect.bottom + 6 },
+                          );
+                        }}
+                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[10.5px] font-semibold transition-colors cursor-pointer ${
+                          selectedUserIds.length > 0
+                            ? "bg-slate-900 text-white border-slate-900 hover:bg-slate-800"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900"
+                        }`}
+                        title="Filtruj po przypisanym opiekunie"
+                      >
+                        {selectedUserIds.length > 0 ? (
+                          <>
+                            <span className="flex items-center -space-x-1">
+                              {selectedUserIds.slice(0, 3).map((uid) => {
+                                const u = availableUsers.find((au) => au.id === uid);
+                                return (
+                                  <span
+                                    key={uid}
+                                    className="w-2 h-2 rounded-full ring-1 ring-slate-900"
+                                    style={{
+                                      background: u?.color ?? "#94a3b8",
+                                    }}
+                                  />
+                                );
+                              })}
+                            </span>
+                            <span className="max-w-[70px] truncate">
+                              {selectedUserIds.length === 1
+                                ? selectedUserIds[0] === "__none__"
+                                  ? "Bez os."
+                                  : availableUsers.find(
+                                      (u) => u.id === selectedUserIds[0],
+                                    )?.name.split(" ")[0] ?? "1 os."
+                                : `${selectedUserIds.length} os.`}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Users size={11} className="shrink-0" />
+                            <span>Opiekun</span>
+                          </>
+                        )}
+                        <ChevronDown
+                          size={11}
+                          className={`shrink-0 transition-transform ${
+                            userFilterMenu ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+
+                      {selectedUserIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedUserIds([]);
+                          }}
+                          className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                          title="Wyczyść filtr opiekuna"
+                        >
+                          <X size={11} />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Timeline Header */}
@@ -1493,6 +1641,96 @@ export default function ScheduleGantt() {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* User Filter Popover Menu (from CTA in ZLECENIE / KLIENT header) */}
+      {userFilterMenu && (
+        <div
+          ref={userFilterMenuRef}
+          role="menu"
+          style={{
+            left:
+              typeof window !== "undefined"
+                ? Math.min(userFilterMenu.x, window.innerWidth - 240)
+                : userFilterMenu.x,
+            top:
+              typeof window !== "undefined"
+                ? Math.min(userFilterMenu.y, window.innerHeight - 280)
+                : userFilterMenu.y,
+          }}
+          className="fixed z-50 min-w-[224px] max-w-[260px] rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-[0_12px_32px_-8px_rgba(15,23,42,0.24),0_2px_6px_rgba(15,23,42,0.08)] p-1.5 text-xs text-slate-700 select-none"
+        >
+          <div className="flex items-center justify-between px-2.5 py-1 text-[11px] font-medium text-slate-400">
+            <span>Filtruj po opiekunie</span>
+            {selectedUserIds.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedUserIds([])}
+                className="text-[11px] font-semibold text-slate-500 hover:text-slate-900 cursor-pointer"
+              >
+                Wyczyść
+              </button>
+            )}
+          </div>
+          <div className="my-1 border-t border-slate-200/80" />
+          <div className="max-h-60 overflow-y-auto space-y-0.5">
+            {availableUsers.map((u) => {
+              const isSelected = selectedUserIds.includes(u.id);
+              return (
+                <button
+                  key={u.id}
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={isSelected}
+                  onClick={() => toggleUserFilter(u.id)}
+                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors cursor-pointer ${
+                    isSelected
+                      ? "bg-slate-900 text-white font-semibold"
+                      : "text-slate-700 font-medium hover:bg-slate-100"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 min-w-0 truncate">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-black/10"
+                      style={{ background: u.color ?? "#94a3b8" }}
+                    />
+                    <span className="truncate">{u.name}</span>
+                  </span>
+                  {isSelected && (
+                    <Check size={13} className="stroke-[2.5] shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+
+            {hasUnassignedOrders && (
+              <>
+                {availableUsers.length > 0 && (
+                  <div className="my-1 border-t border-slate-100" />
+                )}
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={selectedUserIds.includes("__none__")}
+                  onClick={() => toggleUserFilter("__none__")}
+                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors cursor-pointer ${
+                    selectedUserIds.includes("__none__")
+                      ? "bg-slate-900 text-white font-semibold"
+                      : "text-slate-500 font-medium hover:bg-slate-100 hover:text-slate-800"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 min-w-0 truncate">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-dashed border-slate-400" />
+                    <span className="truncate">Bez przypisanego</span>
+                  </span>
+                  {selectedUserIds.includes("__none__") && (
+                    <Check size={13} className="stroke-[2.5] shrink-0" />
+                  )}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
 
