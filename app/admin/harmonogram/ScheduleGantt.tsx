@@ -15,8 +15,10 @@ import {
   ChevronRight,
   Diamond,
   ExternalLink,
+  ListChecks,
   Search,
   SlidersHorizontal,
+  Trash2,
   X,
 } from "lucide-react";
 
@@ -170,9 +172,62 @@ export default function ScheduleGantt() {
     y: number;
   } | null>(null);
   const [recentlyCreatedKey, setRecentlyCreatedKey] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    order: ScheduleOrder;
+    stage: (typeof STAGES)[number];
+    x: number;
+    y: number;
+  } | null>(null);
 
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const handlePointerDownOutside = (e: MouseEvent) => {
+      if (contextMenuRef.current && contextMenuRef.current.contains(e.target as Node)) {
+        return;
+      }
+      setContextMenu(null);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setContextMenu(null);
+    };
+    const handleClose = () => setContextMenu(null);
+
+    window.addEventListener("mousedown", handlePointerDownOutside);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", handleClose);
+    const scrollEl = timelineScrollRef.current;
+    scrollEl?.addEventListener("scroll", handleClose, { passive: true });
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDownOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", handleClose);
+      scrollEl?.removeEventListener("scroll", handleClose);
+    };
+  }, [contextMenu]);
+
+  const handleDeleteStageBar = useCallback(
+    async (order: ScheduleOrder, stage: (typeof STAGES)[number]) => {
+      setContextMenu(null);
+      setHoveredBar(null);
+      try {
+        await updateOrder({
+          orderId: order._id,
+          [stage.startField]: null,
+          [stage.endField]: null,
+        });
+        toast.success(`Usunięto termin etapu: ${stage.label}`);
+      } catch (err) {
+        console.error(err);
+        toast.error("Nie udało się usunąć terminu etapu.");
+      }
+    },
+    [updateOrder],
+  );
 
   const currentSelectedOrder = useMemo(() => {
     if (!selectedStageTarget) return null;
@@ -502,8 +557,10 @@ export default function ScheduleGantt() {
         <div
           data-stage-bar="true"
           onPointerDown={(e) => {
+            if (e.button !== 0) return;
             if ((e.target as HTMLElement).dataset.resizeHandle) return;
             e.preventDefault();
+            setContextMenu(null);
             setDragState({
               orderId: order._id,
               stageKey: stage.key,
@@ -513,6 +570,17 @@ export default function ScheduleGantt() {
               origEnd: endNorm,
               previewStart: startNorm,
               previewEnd: endNorm,
+            });
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setHoveredBar(null);
+            setContextMenu({
+              order,
+              stage,
+              x: e.clientX,
+              y: e.clientY,
             });
           }}
           onMouseEnter={(e) =>
@@ -554,8 +622,10 @@ export default function ScheduleGantt() {
           <div
             data-resize-handle="left"
             onPointerDown={(e) => {
+              if (e.button !== 0) return;
               e.stopPropagation();
               e.preventDefault();
+              setContextMenu(null);
               setDragState({
                 orderId: order._id,
                 stageKey: stage.key,
@@ -611,8 +681,10 @@ export default function ScheduleGantt() {
           <div
             data-resize-handle="right"
             onPointerDown={(e) => {
+              if (e.button !== 0) return;
               e.stopPropagation();
               e.preventDefault();
+              setContextMenu(null);
               setDragState({
                 orderId: order._id,
                 stageKey: stage.key,
@@ -642,6 +714,17 @@ export default function ScheduleGantt() {
                 stageKey: stage.key,
               });
               setIsDrawerOpen(true);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setHoveredBar(null);
+              setContextMenu({
+                order,
+                stage,
+                x: e.clientX,
+                y: e.clientY,
+              });
             }}
             onMouseEnter={(e) =>
               setHoveredBar({
@@ -1171,7 +1254,7 @@ export default function ScheduleGantt() {
       )}
 
       {/* Hover Tooltip */}
-      {hoveredBar && !dragState && (
+      {hoveredBar && !dragState && !contextMenu && (
         <div
           className="fixed z-50 pointer-events-none rounded-lg px-3 py-2 text-xs shadow-lg border"
           style={{
@@ -1205,6 +1288,70 @@ export default function ScheduleGantt() {
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* Native-style System Context Menu (Right-click on stage bar) */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          role="menu"
+          onContextMenu={(e) => e.preventDefault()}
+          style={{
+            left:
+              typeof window !== "undefined"
+                ? Math.min(contextMenu.x, window.innerWidth - 228)
+                : contextMenu.x,
+            top:
+              typeof window !== "undefined"
+                ? Math.min(contextMenu.y, window.innerHeight - 136)
+                : contextMenu.y,
+          }}
+          className="fixed z-50 min-w-[212px] rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-[0_12px_32px_-8px_rgba(15,23,42,0.24),0_2px_6px_rgba(15,23,42,0.08)] p-1 text-[12.5px] text-slate-700 select-none"
+        >
+          <div className="px-2.5 py-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-400 truncate max-w-[230px]">
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ background: contextMenu.stage.color }}
+            />
+            <span className="truncate">
+              {contextMenu.order.customText?.trim() || contextMenu.order.name} •{" "}
+              {contextMenu.stage.label}
+            </span>
+          </div>
+
+          <div className="my-1 border-t border-slate-200/80" />
+
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setSelectedStageTarget({
+                order: contextMenu.order,
+                stageKey: contextMenu.stage.key,
+              });
+              setIsDrawerOpen(true);
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left hover:bg-slate-100 active:bg-slate-200/70 transition-colors cursor-pointer"
+          >
+            <ListChecks size={14} className="text-slate-500 shrink-0" />
+            <span>Otwórz checklistę etapu</span>
+          </button>
+
+          <div className="my-1 border-t border-slate-200/80" />
+
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() =>
+              void handleDeleteStageBar(contextMenu.order, contextMenu.stage)
+            }
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left font-medium text-rose-600 hover:bg-rose-50 active:bg-rose-100/80 transition-colors cursor-pointer"
+          >
+            <Trash2 size={14} className="shrink-0" />
+            <span>Usuń z osi czasu</span>
+          </button>
         </div>
       )}
 
