@@ -542,9 +542,8 @@ export default function ScheduleGantt() {
     const stageIdx = STAGE_ORDER[stage.key];
     const isDone = stageIdx < currentStageIdx;
     const isCurrent = stageIdx === currentStageIdx;
-    const isFuture = startNorm > todayTs;
     const isRecent = recentlyCreatedKey === `${order._id}-${stage.key}`;
-    const barBackground = isFuture ? "#64748b" : stage.color;
+    const barBackground = stage.color;
 
     const progress = order.stageProgress?.[stage.key];
     const hasChecklist = Boolean(progress && progress.total > 0);
@@ -645,12 +644,7 @@ export default function ScheduleGantt() {
 
           {/* Milestone Icon and Label */}
           <div className="flex items-center gap-1.5 truncate pointer-events-none px-3 font-medium">
-            {isFuture ? (
-              <span
-                className="w-2 h-2 rounded-full shrink-0 ring-1 ring-white/70"
-                style={{ background: stage.color }}
-              />
-            ) : isDone ? (
+            {isDone ? (
               <Check size={12} className="stroke-[3] shrink-0 text-white/90" />
             ) : isCurrent ? (
               <span className="w-2 h-2 rounded-full bg-white shrink-0 animate-pulse shadow-sm" />
@@ -670,7 +664,7 @@ export default function ScheduleGantt() {
               </span>
             )}
 
-            {isCurrent && !isFuture && (
+            {isCurrent && (
               <span className="text-[9px] font-bold px-1.5 py-0.2 bg-white/25 rounded tracking-wide shrink-0 hidden sm:inline-block">
                 W TRAKCIE
               </span>
