@@ -150,7 +150,11 @@ export default function ScheduleGantt() {
   const updateOrder = useMutation(api.orders.update);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [teamFilter, setTeamFilter] = useState<string>("all");
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
+  const [teamFilterMenu, setTeamFilterMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [userFilterMenu, setUserFilterMenu] = useState<{
     x: number;
@@ -199,6 +203,7 @@ export default function ScheduleGantt() {
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const addStageMenuRef = useRef<HTMLDivElement | null>(null);
   const userFilterMenuRef = useRef<HTMLDivElement | null>(null);
+  const teamFilterMenuRef = useRef<HTMLDivElement | null>(null);
 
   const handleTimelinePanStart = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -245,7 +250,7 @@ export default function ScheduleGantt() {
   }, [isPanning]);
 
   useEffect(() => {
-    if (!contextMenu && !addStageMenu && !userFilterMenu) return;
+    if (!contextMenu && !addStageMenu && !userFilterMenu && !teamFilterMenu) return;
 
     const handlePointerDownOutside = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -258,21 +263,27 @@ export default function ScheduleGantt() {
       if (userFilterMenuRef.current && userFilterMenuRef.current.contains(target)) {
         return;
       }
+      if (teamFilterMenuRef.current && teamFilterMenuRef.current.contains(target)) {
+        return;
+      }
       setContextMenu(null);
       setAddStageMenu(null);
       setUserFilterMenu(null);
+      setTeamFilterMenu(null);
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setContextMenu(null);
         setAddStageMenu(null);
         setUserFilterMenu(null);
+        setTeamFilterMenu(null);
       }
     };
     const handleClose = () => {
       setContextMenu(null);
       setAddStageMenu(null);
       setUserFilterMenu(null);
+      setTeamFilterMenu(null);
     };
 
     window.addEventListener("mousedown", handlePointerDownOutside);
@@ -286,7 +297,7 @@ export default function ScheduleGantt() {
       window.removeEventListener("resize", handleClose);
       scrollEl?.removeEventListener("scroll", handleClose);
     };
-  }, [contextMenu, addStageMenu, userFilterMenu]);
+  }, [contextMenu, addStageMenu, userFilterMenu, teamFilterMenu]);
 
   const handleDeleteStageBar = useCallback(
     async (order: ScheduleOrder, stage: (typeof STAGES)[number]) => {
@@ -346,14 +357,36 @@ export default function ScheduleGantt() {
 
   const availableTeams = useMemo(() => {
     if (!orders) return [];
-    const map = new Map<string, string>();
+    const map = new Map<string, { id: string; name: string; color?: string }>();
     for (const o of orders) {
       if (o.installationTeamId && o.installationTeamName) {
-        map.set(o.installationTeamId, o.installationTeamName);
+        const id = String(o.installationTeamId);
+        if (!map.has(id)) {
+          map.set(id, {
+            id,
+            name: o.installationTeamName,
+            color: o.installationTeamColor,
+          });
+        }
       }
     }
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+    return Array.from(map.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, "pl"),
+    );
   }, [orders]);
+
+  const hasUnassignedTeamOrders = useMemo(() => {
+    if (!orders) return false;
+    return orders.some((o) => !o.installationTeamId);
+  }, [orders]);
+
+  const toggleTeamFilter = useCallback((teamId: string) => {
+    setSelectedTeamIds((prev) =>
+      prev.includes(teamId)
+        ? prev.filter((id) => id !== teamId)
+        : [...prev, teamId],
+    );
+  }, []);
 
   const availableUsers = useMemo(() => {
     if (!orders) return [];
@@ -392,7 +425,14 @@ export default function ScheduleGantt() {
     if (!orders) return [];
     const q = searchTerm.trim().toLowerCase();
     return orders.filter((o) => {
-      if (teamFilter !== "all" && o.installationTeamId !== teamFilter) return false;
+      if (selectedTeamIds.length > 0) {
+        const tid = o.installationTeamId ? String(o.installationTeamId) : null;
+        if (!tid) {
+          if (!selectedTeamIds.includes("__none__")) return false;
+        } else if (!selectedTeamIds.includes(tid)) {
+          return false;
+        }
+      }
       if (selectedUserIds.length > 0) {
         const ids = (o.assignees ?? []).map((a) => String(a.id));
         if (ids.length === 0) {
@@ -407,11 +447,11 @@ export default function ScheduleGantt() {
       }
       return true;
     });
-  }, [orders, teamFilter, selectedUserIds, searchTerm]);
+  }, [orders, selectedTeamIds, selectedUserIds, searchTerm]);
 
   const hasActiveFilters =
     Boolean(searchTerm.trim()) ||
-    teamFilter !== "all" ||
+    selectedTeamIds.length > 0 ||
     selectedUserIds.length > 0;
 
   const scrollToToday = useCallback(() => {
@@ -1045,25 +1085,86 @@ export default function ScheduleGantt() {
             )}
           </div>
 
-          {/* Team filter */}
-          {availableTeams.length > 0 && (
-            <select
-              value={teamFilter}
-              onChange={(e) => setTeamFilter(e.target.value)}
-              className="px-2.5 py-1 text-xs rounded-lg border focus:outline-none cursor-pointer"
-              style={{
-                borderColor: "var(--line)",
-                background: "var(--background, #f8fafc)",
-                color: "var(--text-strong)",
-              }}
-            >
-              <option value="all">Wszystkie ekipy</option>
-              {availableTeams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+          {/* Team multiselect filter */}
+          {(availableTeams.length > 0 || hasUnassignedTeamOrders) && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setContextMenu(null);
+                  setAddStageMenu(null);
+                  setUserFilterMenu(null);
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setTeamFilterMenu((prev) =>
+                    prev ? null : { x: rect.left, y: rect.bottom + 6 },
+                  );
+                }}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                  selectedTeamIds.length > 0
+                    ? "bg-slate-900 text-white border-slate-900 hover:bg-slate-800"
+                    : "hover:bg-slate-100"
+                }`}
+                style={
+                  selectedTeamIds.length > 0
+                    ? undefined
+                    : {
+                        borderColor: "var(--line)",
+                        background: "var(--background, #f8fafc)",
+                        color: "var(--text-strong)",
+                      }
+                }
+                title="Filtruj po ekipie montażowej"
+              >
+                {selectedTeamIds.length > 0 ? (
+                  <>
+                    <span className="flex items-center -space-x-1">
+                      {selectedTeamIds.slice(0, 3).map((tid) => {
+                        const t = availableTeams.find((at) => at.id === tid);
+                        return (
+                          <span
+                            key={tid}
+                            className="w-2 h-2 rounded-full ring-1 ring-slate-900"
+                            style={{ background: t?.color ?? "#94a3b8" }}
+                          />
+                        );
+                      })}
+                    </span>
+                    <span className="max-w-[110px] truncate">
+                      {selectedTeamIds.length === 1
+                        ? selectedTeamIds[0] === "__none__"
+                          ? "Bez ekipy"
+                          : availableTeams.find(
+                              (t) => t.id === selectedTeamIds[0],
+                            )?.name ?? "1 ekipa"
+                        : `Ekipy (${selectedTeamIds.length})`}
+                    </span>
+                  </>
+                ) : (
+                  <span>Wszystkie ekipy</span>
+                )}
+                <ChevronDown
+                  size={12}
+                  className={`shrink-0 transition-transform ${
+                    teamFilterMenu ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {selectedTeamIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedTeamIds([]);
+                  }}
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="Wyczyść filtr ekip"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           )}
 
           {/* Zoom */}
@@ -1145,7 +1246,7 @@ export default function ScheduleGantt() {
               type="button"
               onClick={() => {
                 setSearchTerm("");
-                setTeamFilter("all");
+                setSelectedTeamIds([]);
                 setSelectedUserIds([]);
               }}
               className="mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
@@ -1725,6 +1826,96 @@ export default function ScheduleGantt() {
                     <span className="truncate">Bez przypisanego</span>
                   </span>
                   {selectedUserIds.includes("__none__") && (
+                    <Check size={13} className="stroke-[2.5] shrink-0" />
+                  )}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Team Multiselect Filter Popover Menu */}
+      {teamFilterMenu && (
+        <div
+          ref={teamFilterMenuRef}
+          role="menu"
+          style={{
+            left:
+              typeof window !== "undefined"
+                ? Math.min(teamFilterMenu.x, window.innerWidth - 240)
+                : teamFilterMenu.x,
+            top:
+              typeof window !== "undefined"
+                ? Math.min(teamFilterMenu.y, window.innerHeight - 280)
+                : teamFilterMenu.y,
+          }}
+          className="fixed z-50 min-w-[224px] max-w-[260px] rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-[0_12px_32px_-8px_rgba(15,23,42,0.24),0_2px_6px_rgba(15,23,42,0.08)] p-1.5 text-xs text-slate-700 select-none"
+        >
+          <div className="flex items-center justify-between px-2.5 py-1 text-[11px] font-medium text-slate-400">
+            <span>Filtruj po ekipie</span>
+            {selectedTeamIds.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedTeamIds([])}
+                className="text-[11px] font-semibold text-slate-500 hover:text-slate-900 cursor-pointer"
+              >
+                Wyczyść
+              </button>
+            )}
+          </div>
+          <div className="my-1 border-t border-slate-200/80" />
+          <div className="max-h-60 overflow-y-auto space-y-0.5">
+            {availableTeams.map((t) => {
+              const isSelected = selectedTeamIds.includes(t.id);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={isSelected}
+                  onClick={() => toggleTeamFilter(t.id)}
+                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors cursor-pointer ${
+                    isSelected
+                      ? "bg-slate-900 text-white font-semibold"
+                      : "text-slate-700 font-medium hover:bg-slate-100"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 min-w-0 truncate">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-black/10"
+                      style={{ background: t.color ?? "#059669" }}
+                    />
+                    <span className="truncate">{t.name}</span>
+                  </span>
+                  {isSelected && (
+                    <Check size={13} className="stroke-[2.5] shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+
+            {hasUnassignedTeamOrders && (
+              <>
+                {availableTeams.length > 0 && (
+                  <div className="my-1 border-t border-slate-100" />
+                )}
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={selectedTeamIds.includes("__none__")}
+                  onClick={() => toggleTeamFilter("__none__")}
+                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors cursor-pointer ${
+                    selectedTeamIds.includes("__none__")
+                      ? "bg-slate-900 text-white font-semibold"
+                      : "text-slate-500 font-medium hover:bg-slate-100 hover:text-slate-800"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 min-w-0 truncate">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-dashed border-slate-400" />
+                    <span className="truncate">Bez ekipy</span>
+                  </span>
+                  {selectedTeamIds.includes("__none__") && (
                     <Check size={13} className="stroke-[2.5] shrink-0" />
                   )}
                 </button>
