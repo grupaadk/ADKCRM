@@ -236,7 +236,29 @@ export const listForSchedule = query({
           assignees,
         };
       })
-      .sort((a, b) => (b.statusChangedAt ?? 0) - (a.statusChangedAt ?? 0));
+      .sort((a, b) => {
+        const aInst = a.installationPhaseStartDate ?? a.installationPhaseEndDate;
+        const bInst = b.installationPhaseStartDate ?? b.installationPhaseEndDate;
+        if (aInst !== undefined && bInst !== undefined) {
+          if (aInst !== bInst) return aInst - bInst;
+          const aEnd = a.installationPhaseEndDate ?? aInst;
+          const bEnd = b.installationPhaseEndDate ?? bInst;
+          if (aEnd !== bEnd) return aEnd - bEnd;
+          return (b.statusChangedAt ?? 0) - (a.statusChangedAt ?? 0);
+        }
+        if (aInst !== undefined) return -1;
+        if (bInst !== undefined) return 1;
+
+        const aComp = a.completionStartDate ?? a.completionEndDate;
+        const bComp = b.completionStartDate ?? b.completionEndDate;
+        if (aComp !== undefined && bComp !== undefined && aComp !== bComp) {
+          return aComp - bComp;
+        }
+        if (aComp !== undefined) return -1;
+        if (bComp !== undefined) return 1;
+
+        return (b.statusChangedAt ?? 0) - (a.statusChangedAt ?? 0);
+      });
   },
 });
 

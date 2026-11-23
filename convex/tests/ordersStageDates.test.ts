@@ -163,4 +163,68 @@ describe("Order stage dates for Kompletacja, Produkcja, Montaż", () => {
     const returnedStatuses = scheduleOrders.map((o) => o.status).sort();
     expect(returnedStatuses).toEqual(["installation", "kitting"]);
   });
+
+  test("listForSchedule sorts orders chronologically by installation date with unscheduled at the bottom", async () => {
+    const t = convexTest(schema);
+    const { asUser } = await seedUserAndOrder(t, "contract");
+
+    const day1 = Date.UTC(2026, 11, 1);
+    const day5 = Date.UTC(2026, 11, 5);
+    const day10 = Date.UTC(2026, 11, 10);
+
+    await t.run(async (ctx) => {
+      const users = await ctx.db.query("users").collect();
+      const clients = await ctx.db.query("clients").collect();
+      const uid = users[0]._id;
+      const cid = clients[0]._id;
+
+      await ctx.db.insert("orders", {
+        clientId: cid,
+        name: "Montaz-pozny",
+        status: "installation",
+        statusChangedAt: 3000,
+        installationPhaseStartDate: day10,
+        documents: DEFAULT_DOCUMENTS,
+        source: "manual",
+        createdBy: uid,
+      });
+      await ctx.db.insert("orders", {
+        clientId: cid,
+        name: "Bez-daty-montazu",
+        status: "kitting",
+        statusChangedAt: 4000,
+        documents: DEFAULT_DOCUMENTS,
+        source: "manual",
+        createdBy: uid,
+      });
+      await ctx.db.insert("orders", {
+        clientId: cid,
+        name: "Montaz-wczesny",
+        status: "installation",
+        statusChangedAt: 1000,
+        installationPhaseStartDate: day1,
+        documents: DEFAULT_DOCUMENTS,
+        source: "manual",
+        createdBy: uid,
+      });
+      await ctx.db.insert("orders", {
+        clientId: cid,
+        name: "Montaz-srodkowy",
+        status: "kitting",
+        statusChangedAt: 2000,
+        installationPhaseStartDate: day5,
+        documents: DEFAULT_DOCUMENTS,
+        source: "manual",
+        createdBy: uid,
+      });
+    });
+
+    const scheduleOrders = await asUser.query(api.orders.listForSchedule, {});
+    expect(scheduleOrders.map((o) => o.name)).toEqual([
+      "Montaz-wczesny",
+      "Montaz-srodkowy",
+      "Montaz-pozny",
+      "Bez-daty-montazu",
+    ]);
+  });
 });
