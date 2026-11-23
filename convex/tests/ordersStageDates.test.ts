@@ -127,7 +127,7 @@ describe("Order stage dates for Kompletacja, Produkcja, Montaż", () => {
     expect(order?.productionEndDate).toBeUndefined();
   });
 
-  test("listForSchedule returns only orders in Kompletacja (kitting), Produkcja, and Montaż", async () => {
+  test("listForSchedule returns only orders in Kompletacja (kitting) and Montaż (excluding Produkcja)", async () => {
     const t = convexTest(schema);
     const { asUser } = await seedUserAndOrder(t, "contract");
 
@@ -161,6 +161,6 @@ describe("Order stage dates for Kompletacja, Produkcja, Montaż", () => {
 
     const scheduleOrders = await asUser.query(api.orders.listForSchedule, {});
     const returnedStatuses = scheduleOrders.map((o) => o.status).sort();
-    expect(returnedStatuses).toEqual(["installation", "kitting", "production"]);
+    expect(returnedStatuses).toEqual(["installation", "kitting"]);
   });
 });

@@ -24,13 +24,12 @@ import {
 const MS_PER_DAY = 86_400_000;
 const LEFT_PANEL_WIDTH = 260;
 
-type StageKey = "kitting" | "production" | "installation";
+type StageKey = "kitting" | "installation";
 type ZoomLevel = "day" | "week" | "month";
 
 const STAGE_ORDER: Record<StageKey, number> = {
   kitting: 0,
-  production: 1,
-  installation: 2,
+  installation: 1,
 };
 
 const ZOOM_DAY_WIDTH: Record<ZoomLevel, number> = {
@@ -45,8 +44,8 @@ const STAGES: Array<{
   color: string;
   bg: string;
   border: string;
-  startField: "completionStartDate" | "productionStartDate" | "installationPhaseStartDate";
-  endField: "completionEndDate" | "productionEndDate" | "installationPhaseEndDate";
+  startField: "completionStartDate" | "installationPhaseStartDate";
+  endField: "completionEndDate" | "installationPhaseEndDate";
 }> = [
   {
     key: "kitting",
@@ -56,15 +55,6 @@ const STAGES: Array<{
     border: "rgba(2, 132, 199, 0.45)",
     startField: "completionStartDate",
     endField: "completionEndDate",
-  },
-  {
-    key: "production",
-    label: "Produkcja",
-    color: "#7c3aed",
-    bg: "rgba(124, 58, 237, 0.14)",
-    border: "rgba(124, 58, 237, 0.45)",
-    startField: "productionStartDate",
-    endField: "productionEndDate",
   },
   {
     key: "installation",
@@ -393,19 +383,13 @@ export default function ScheduleGantt() {
     preferredStartTs?: number,
   ) => {
     const stage = STAGE_BY_KEY[stageKey];
-    const defaultDays = stageKey === "production" ? 5 : stageKey === "kitting" ? 3 : 2;
+    const defaultDays = stageKey === "kitting" ? 3 : 2;
 
     let startTs: number;
     if (preferredStartTs) {
       startTs = normalizeDayStart(preferredStartTs);
-    } else if (stageKey === "production" && order.completionEndDate) {
+    } else if (stageKey === "installation" && order.completionEndDate) {
       startTs = normalizeDayStart(addDays(order.completionEndDate, 1));
-    } else if (
-      stageKey === "installation" &&
-      (order.productionEndDate || order.completionEndDate)
-    ) {
-      const prevEnd = order.productionEndDate ?? order.completionEndDate!;
-      startTs = normalizeDayStart(addDays(prevEnd, 1));
     } else {
       startTs = todayTs;
     }
@@ -920,7 +904,7 @@ export default function ScheduleGantt() {
             Brak zleceń spełniających kryteria
           </p>
           <p className="text-xs" style={{ color: "var(--text-mute)" }}>
-            Widok uwzględnia wyłącznie zlecenia w realizacji (Kompletacja, Produkcja, Montaż).
+            Widok uwzględnia wyłącznie zlecenia w realizacji (Kompletacja, Montaż).
           </p>
         </div>
       ) : (

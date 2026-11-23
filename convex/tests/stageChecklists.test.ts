@@ -35,18 +35,18 @@ describe("stageChecklists", () => {
     });
 
     await t.run(async (ctx) => {
-      await ctx.db.patch(orderId, { status: "production" });
+      await ctx.db.patch(orderId, { status: "kitting" });
     });
 
-    // Add checklist items to production and installation stages
+    // Add checklist items to kitting and installation stages
     const item1 = await adminCtx.mutation(api.stageChecklists.create, {
       orderId,
-      stageKey: "production",
+      stageKey: "kitting",
       title: "Sprawdzić profil aluminiowy",
     });
     const item2 = await adminCtx.mutation(api.stageChecklists.create, {
       orderId,
-      stageKey: "production",
+      stageKey: "kitting",
       title: "Kontrola szyb przed pakowaniem",
     });
     await adminCtx.mutation(api.stageChecklists.create, {
@@ -59,13 +59,13 @@ describe("stageChecklists", () => {
     const orderTasks = await adminCtx.query(api.orderTasks.listByOrder, { orderId });
     expect(orderTasks).toHaveLength(0);
 
-    // List production checklist items
-    const prodItems = await adminCtx.query(api.stageChecklists.listByOrderStage, {
+    // List kitting checklist items
+    const kittingItems = await adminCtx.query(api.stageChecklists.listByOrderStage, {
       orderId,
-      stageKey: "production",
+      stageKey: "kitting",
     });
-    expect(prodItems).toHaveLength(2);
-    expect(prodItems[0].done).toBe(false);
+    expect(kittingItems).toHaveLength(2);
+    expect(kittingItems[0].done).toBe(false);
 
     // Toggle item1 to done
     const toggled = await adminCtx.mutation(api.stageChecklists.toggle, { itemId: item1 });
@@ -76,8 +76,8 @@ describe("stageChecklists", () => {
     const targetOrder = scheduleOrders.find((o) => o._id === orderId);
     expect(targetOrder).toBeDefined();
     expect(targetOrder?.stageProgress).toEqual({
-      kitting: { done: 0, total: 0 },
-      production: { done: 1, total: 2 },
+      kitting: { done: 1, total: 2 },
+      production: { done: 0, total: 0 },
       installation: { done: 0, total: 1 },
     });
 
@@ -85,6 +85,6 @@ describe("stageChecklists", () => {
     await adminCtx.mutation(api.stageChecklists.remove, { itemId: item2 });
     const afterRemove = await adminCtx.query(api.orders.listForSchedule, {});
     const updatedOrder = afterRemove.find((o) => o._id === orderId);
-    expect(updatedOrder?.stageProgress.production).toEqual({ done: 1, total: 1 });
+    expect(updatedOrder?.stageProgress.kitting).toEqual({ done: 1, total: 1 });
   });
 });

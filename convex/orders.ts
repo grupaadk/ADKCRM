@@ -107,9 +107,11 @@ export const listForSchedule = query({
       config?.statusLabels,
     );
 
-    const matchingDefs = registry.filter(
-      (s) => s.kind === "order" && resolveStageKey(s.key, registry) !== null,
-    );
+    const matchingDefs = registry.filter((s) => {
+      if (s.kind !== "order") return false;
+      const stageKey = resolveStageKey(s.key, registry);
+      return stageKey === "kitting" || stageKey === "installation";
+    });
 
     const ordersByStatus = await Promise.all(
       matchingDefs.map((def) =>
