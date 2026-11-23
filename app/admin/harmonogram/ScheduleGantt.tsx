@@ -16,6 +16,7 @@ import {
   Diamond,
   ExternalLink,
   ListChecks,
+  Plus,
   Search,
   Trash2,
   X,
@@ -171,24 +172,42 @@ export default function ScheduleGantt() {
     x: number;
     y: number;
   } | null>(null);
+  const [addStageMenu, setAddStageMenu] = useState<{
+    order: ScheduleOrder;
+    stages: Array<(typeof STAGES)[number]>;
+    x: number;
+    y: number;
+  } | null>(null);
 
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
+  const addStageMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!contextMenu) return;
+    if (!contextMenu && !addStageMenu) return;
 
     const handlePointerDownOutside = (e: MouseEvent) => {
-      if (contextMenuRef.current && contextMenuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (contextMenuRef.current && contextMenuRef.current.contains(target)) {
+        return;
+      }
+      if (addStageMenuRef.current && addStageMenuRef.current.contains(target)) {
         return;
       }
       setContextMenu(null);
+      setAddStageMenu(null);
     };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setContextMenu(null);
+      if (e.key === "Escape") {
+        setContextMenu(null);
+        setAddStageMenu(null);
+      }
     };
-    const handleClose = () => setContextMenu(null);
+    const handleClose = () => {
+      setContextMenu(null);
+      setAddStageMenu(null);
+    };
 
     window.addEventListener("mousedown", handlePointerDownOutside);
     window.addEventListener("keydown", handleKeyDown);
@@ -201,7 +220,7 @@ export default function ScheduleGantt() {
       window.removeEventListener("resize", handleClose);
       scrollEl?.removeEventListener("scroll", handleClose);
     };
-  }, [contextMenu]);
+  }, [contextMenu, addStageMenu]);
 
   const handleDeleteStageBar = useCallback(
     async (order: ScheduleOrder, stage: (typeof STAGES)[number]) => {
@@ -1000,6 +1019,9 @@ export default function ScheduleGantt() {
 
                 {filteredOrders.map((order) => {
                   const currentStageIdx = STAGE_ORDER[order.stageKey] ?? 0;
+                  const unscheduledStages = STAGES.filter(
+                    (st) => !order[st.startField] && !order[st.endField],
+                  );
                   const assigneeColors = (order.assignees ?? [])
                     .map((a) => a.color)
                     .filter((c): c is string => Boolean(c));
@@ -1032,7 +1054,7 @@ export default function ScheduleGantt() {
                       >
                         {/* Left sticky cell */}
                         <div
-                          className="sticky left-0 z-20 shrink-0 pl-4 pr-3.5 py-2 border-r flex items-center shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
+                          className="sticky left-0 z-20 shrink-0 pl-4 pr-2.5 py-2 border-r flex items-center justify-between gap-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
                           style={{
                             width: LEFT_PANEL_WIDTH,
                             borderColor: "var(--line, #e5e7eb)",
@@ -1072,6 +1094,42 @@ export default function ScheduleGantt() {
                                 : ""}
                             </div>
                           </div>
+
+                          {unscheduledStages.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setContextMenu(null);
+                                if (unscheduledStages.length === 1) {
+                                  void handleCreateStageBar(
+                                    order,
+                                    unscheduledStages[0].key,
+                                  );
+                                  return;
+                                }
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setAddStageMenu((prev) =>
+                                  prev?.order._id === order._id
+                                    ? null
+                                    : {
+                                        order,
+                                        stages: unscheduledStages,
+                                        x: rect.right + 6,
+                                        y: rect.top,
+                                      },
+                                );
+                              }}
+                              title={
+                                unscheduledStages.length === 1
+                                  ? `Dodaj etap: ${unscheduledStages[0].label}`
+                                  : "Dodaj etap na oś czasu"
+                              }
+                              className="w-6 h-6 shrink-0 rounded-md border border-slate-200/90 bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800 hover:border-slate-300 flex items-center justify-center transition-colors cursor-pointer"
+                            >
+                              <Plus size={13} />
+                            </button>
+                          )}
                         </div>
 
                         {/* Right timeline cell */}
@@ -1080,26 +1138,7 @@ export default function ScheduleGantt() {
                             width: timelineWidth,
                             height: 58,
                           }}
-                          className="relative shrink-0 cursor-pointer"
-                          onClick={(e) => {
-                            if ((e.target as HTMLElement).closest("[data-stage-bar]")) return;
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const clickX = e.clientX - rect.left;
-                            const clickedDayIndex = Math.floor(clickX / dayWidth);
-                            if (clickedDayIndex >= 0 && clickedDayIndex < totalDays) {
-                              const clickedTs = addDays(windowStartTs, clickedDayIndex);
-                              const nextUnscheduled = STAGES.find(
-                                (st) => !order[st.startField] || !order[st.endField],
-                              );
-                              if (nextUnscheduled) {
-                                void handleCreateStageBar(
-                                  order,
-                                  nextUnscheduled.key,
-                                  clickedTs,
-                                );
-                              }
-                            }
-                          }}
+                          className="relative shrink-0"
                         >
                           {/* Day gridlines */}
                           <div className="absolute inset-0 flex pointer-events-none">
@@ -1239,6 +1278,57 @@ export default function ScheduleGantt() {
             <Trash2 size={14} className="shrink-0" />
             <span>Usuń z osi czasu</span>
           </button>
+        </div>
+      )}
+
+      {/* Add Stage Popover Menu (from mini '+' CTA in left column) */}
+      {addStageMenu && (
+        <div
+          ref={addStageMenuRef}
+          role="menu"
+          style={{
+            left:
+              typeof window !== "undefined"
+                ? Math.min(addStageMenu.x, window.innerWidth - 216)
+                : addStageMenu.x,
+            top:
+              typeof window !== "undefined"
+                ? Math.min(addStageMenu.y, window.innerHeight - 130)
+                : addStageMenu.y,
+          }}
+          className="fixed z-50 min-w-[200px] rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-[0_12px_32px_-8px_rgba(15,23,42,0.24),0_2px_6px_rgba(15,23,42,0.08)] p-1 text-[12.5px] text-slate-700 select-none"
+        >
+          <div className="px-2.5 py-1 text-[11px] font-medium text-slate-400">
+            Dodaj etap na oś
+          </div>
+          <div className="my-1 border-t border-slate-200/80" />
+          {addStageMenu.stages.map((st) => {
+            const defaultDays = st.key === "kitting" ? 3 : 2;
+            return (
+              <button
+                key={st.key}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const targetOrder = addStageMenu.order;
+                  setAddStageMenu(null);
+                  void handleCreateStageBar(targetOrder, st.key);
+                }}
+                className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-left hover:bg-slate-100 active:bg-slate-200/70 transition-colors cursor-pointer"
+              >
+                <span className="flex items-center gap-2 font-medium">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ background: st.color }}
+                  />
+                  <span>{st.label}</span>
+                </span>
+                <span className="text-[11px] text-slate-400 tabular-nums">
+                  {defaultDays} dni
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
 
