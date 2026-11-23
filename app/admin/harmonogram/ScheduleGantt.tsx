@@ -958,7 +958,6 @@ export default function ScheduleGantt() {
                 )}
 
                 {filteredOrders.map((order) => {
-                  const activeStageMeta = STAGE_BY_KEY[order.stageKey];
                   const currentStageIdx = STAGE_ORDER[order.stageKey] ?? 0;
 
                   return (
@@ -995,16 +994,6 @@ export default function ScheduleGantt() {
                                 </span>
                                 <ExternalLink size={10} className="opacity-50 shrink-0" />
                               </Link>
-                              <span
-                                className="text-[10px] font-semibold px-1.5 py-0.2 rounded-full shrink-0"
-                                style={{
-                                  background: activeStageMeta.bg,
-                                  color: activeStageMeta.color,
-                                  border: `1px solid ${activeStageMeta.border}`,
-                                }}
-                              >
-                                {order.statusLabel}
-                              </span>
                             </div>
                             <div
                               className="text-[11px] truncate mt-0.5"
