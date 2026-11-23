@@ -102,6 +102,8 @@ interface ScheduleOrder {
   productionEndDate?: number;
   installationPhaseStartDate?: number;
   installationPhaseEndDate?: number;
+  profit?: number;
+  workDays?: number;
   stageProgress?: Record<StageKey, { done: number; total: number }>;
   assignees?: Array<{
     id: Id<"users">;
@@ -145,6 +147,35 @@ function formatPlDate(ts?: number | null): string {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+const RATING_COLORS: Record<number, string> = {
+  5: "#10b981",
+  4: "#84cc16",
+  3: "#3b82f6",
+  2: "#f97316",
+  1: "#ef4444",
+  0: "#94a3b8",
+};
+
+function computeInstallationRating(
+  profit: number | undefined,
+  days: number,
+): { rating: number; dailyProfit: number; color: string } | null {
+  if (profit === undefined || days <= 0) return null;
+  const dailyProfit = Math.round(profit / days);
+  let rating = 0;
+  if (dailyProfit >= 5000) rating = 5;
+  else if (dailyProfit >= 4000) rating = 4;
+  else if (dailyProfit >= 3000) rating = 3;
+  else if (dailyProfit >= 2000) rating = 2;
+  else if (dailyProfit > 0) rating = 1;
+  else rating = 0;
+  return {
+    rating,
+    dailyProfit,
+    color: RATING_COLORS[rating] ?? "#94a3b8",
+  };
 }
 
 const WEEKDAY_SHORT = ["Nd", "Pn", "Wt", "Śr", "Cz", "Pt", "Sb"];
@@ -626,11 +657,13 @@ export default function ScheduleGantt({
       setDragState(null);
 
       const stage = STAGE_BY_KEY[curr.stageKey];
+      const nextSpanDays = Math.max(1, diffDays(curr.previewStart, curr.previewEnd) + 1);
       try {
         await updateOrder({
           orderId: curr.orderId,
           [stage.startField]: curr.previewStart,
           [stage.endField]: curr.previewEnd,
+          ...(curr.stageKey === "installation" ? { workDays: nextSpanDays } : {}),
         });
         toast.success(`Zapisano termin: ${stage.label}`);
       } catch (err) {
@@ -687,6 +720,7 @@ export default function ScheduleGantt({
           orderId: order._id,
           [stage.startField]: startTs,
           [stage.endField]: endTs,
+          ...(stageKey === "installation" ? { workDays: defaultDays } : {}),
         });
         toast.success(
           `Dodano: ${stage.label} (${formatPlDate(startTs)} – ${formatPlDate(endTs)})`,
@@ -863,6 +897,10 @@ export default function ScheduleGantt({
     const progressPct = hasChecklist
       ? Math.round((progress!.done / progress!.total) * 100)
       : 0;
+    const installationRating =
+      stage.key === "installation"
+        ? computeInstallationRating(order.profit, spanDays)
+        : null;
 
     return (
       <React.Fragment key={stage.key}>
@@ -974,6 +1012,21 @@ export default function ScheduleGantt({
             {hasChecklist && (
               <span className="text-[9.5px] font-bold px-1.5 py-0.2 bg-black/25 rounded tracking-wide shrink-0 tabular-nums">
                 {progress!.done}/{progress!.total}
+              </span>
+            )}
+
+            {installationRating && (
+              <span
+                className="inline-flex items-center gap-1 text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-slate-950/60 border border-white/25 tracking-wide shrink-0 tabular-nums"
+                title={`Rating: ${installationRating.rating}/5 (${installationRating.dailyProfit.toLocaleString("pl-PL")} zł/d)`}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ background: installationRating.color }}
+                />
+                <span style={{ color: installationRating.color }}>
+                  {installationRating.rating}/5
+                </span>
               </span>
             )}
           </div>
@@ -1875,6 +1928,10 @@ export default function ScheduleGantt({
                                 day: "2-digit",
                                 month: "2-digit",
                               });
+                              const ghostRating =
+                                placingStage.stageKey === "installation"
+                                  ? computeInstallationRating(order.profit, ghostDays)
+                                  : null;
                               return (
                                 <div
                                   style={{
@@ -1891,6 +1948,14 @@ export default function ScheduleGantt({
                                   <span className="truncate">
                                     {ghostStage.label} ({ghostDays}d)
                                   </span>
+                                  {ghostRating && (
+                                    <span
+                                      className="inline-flex items-center gap-1 text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-slate-900/85 shrink-0 tabular-nums"
+                                      style={{ color: ghostRating.color }}
+                                    >
+                                      {ghostRating.rating}/5
+                                    </span>
+                                  )}
                                   <span className="text-[10px] font-mono opacity-85 shrink-0">
                                     {shortStart}–{shortEnd}
                                   </span>
@@ -1933,6 +1998,31 @@ export default function ScheduleGantt({
               ? ` (${Math.max(1, diffDays(hoveredBar.start, hoveredBar.end) + 1)} dni)`
               : " (brak daty końca)"}
           </div>
+          {hoveredBar.stage.key === "installation" &&
+            (() => {
+              const span = hoveredBar.end
+                ? Math.max(1, diffDays(hoveredBar.start, hoveredBar.end) + 1)
+                : 1;
+              const r = computeInstallationRating(hoveredBar.order.profit, span);
+              if (!r) return null;
+              return (
+                <div
+                  className="text-[11px] mt-1 font-semibold flex items-center gap-1.5"
+                  style={{ color: r.color }}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ background: r.color }}
+                  />
+                  <span>
+                    Rating: {r.rating}/5 • {r.dailyProfit.toLocaleString("pl-PL")} zł/d
+                    {hoveredBar.order.profit !== undefined
+                      ? ` (zysk ${hoveredBar.order.profit.toLocaleString("pl-PL")} zł)`
+                      : ""}
+                  </span>
+                </div>
+              );
+            })()}
           {(() => {
             const p = hoveredBar.order.stageProgress?.[hoveredBar.stage.key];
             if (!p || p.total === 0) return null;

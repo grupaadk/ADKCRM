@@ -232,6 +232,8 @@ export const listForSchedule = query({
           productionEndDate: order.productionEndDate,
           installationPhaseStartDate: order.installationPhaseStartDate,
           installationPhaseEndDate: order.installationPhaseEndDate,
+          profit: order.profit,
+          workDays: order.workDays,
           stageProgress,
           assignees,
         };
