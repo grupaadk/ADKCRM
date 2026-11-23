@@ -150,6 +150,7 @@ export default function ScheduleGantt() {
   const updateOrder = useMutation(api.orders.update);
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [stageFilter, setStageFilter] = useState<StageKey | "all">("all");
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [teamFilterMenu, setTeamFilterMenu] = useState<{
     x: number;
@@ -425,6 +426,7 @@ export default function ScheduleGantt() {
     if (!orders) return [];
     const q = searchTerm.trim().toLowerCase();
     return orders.filter((o) => {
+      if (stageFilter !== "all" && o.stageKey !== stageFilter) return false;
       if (selectedTeamIds.length > 0) {
         const tid = o.installationTeamId ? String(o.installationTeamId) : null;
         if (!tid) {
@@ -447,10 +449,11 @@ export default function ScheduleGantt() {
       }
       return true;
     });
-  }, [orders, selectedTeamIds, selectedUserIds, searchTerm]);
+  }, [orders, stageFilter, selectedTeamIds, selectedUserIds, searchTerm]);
 
   const hasActiveFilters =
     Boolean(searchTerm.trim()) ||
+    stageFilter !== "all" ||
     selectedTeamIds.length > 0 ||
     selectedUserIds.length > 0;
 
@@ -1037,18 +1040,53 @@ export default function ScheduleGantt() {
             </span>
           </div>
 
-          {/* Milestone Legend (Etapy jako kamienie milowe) */}
-          <div className="flex items-center gap-2 text-[11px] px-2.5 py-1 rounded-lg bg-slate-100/70 border border-slate-200/60">
-            <span className="text-slate-400 font-medium">Etapy:</span>
-            {STAGES.map((st, idx) => (
-              <React.Fragment key={st.key}>
-                {idx > 0 && <span className="text-slate-300">➔</span>}
-                <div className="flex items-center gap-1 font-semibold" style={{ color: st.color }}>
-                  <Diamond size={9} className="fill-current" />
-                  <span>{st.label}</span>
-                </div>
-              </React.Fragment>
-            ))}
+          {/* Stage / Status Filter Pills */}
+          <div className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg bg-slate-100/80 border border-slate-200/70">
+            <span className="text-slate-400 font-medium px-1">Status:</span>
+            {STAGES.map((st, idx) => {
+              const isSelected = stageFilter === st.key;
+              const isDimmed = stageFilter !== "all" && !isSelected;
+              return (
+                <React.Fragment key={st.key}>
+                  {idx > 0 && <span className="text-slate-300 select-none">➔</span>}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setStageFilter((prev) => (prev === st.key ? "all" : st.key))
+                    }
+                    title={
+                      isSelected
+                        ? `Wyłącz filtr: ${st.label}`
+                        : `Pokaż tylko: ${st.label}`
+                    }
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
+                      isSelected
+                        ? "shadow-xs"
+                        : isDimmed
+                        ? "opacity-50 hover:opacity-100 hover:bg-white/70"
+                        : "hover:bg-white/80"
+                    }`}
+                    style={{
+                      background: isSelected ? st.color : "transparent",
+                      color: isSelected ? "#ffffff" : st.color,
+                    }}
+                  >
+                    <Diamond size={9} className="fill-current shrink-0" />
+                    <span>{st.label}</span>
+                  </button>
+                </React.Fragment>
+              );
+            })}
+            {stageFilter !== "all" && (
+              <button
+                type="button"
+                onClick={() => setStageFilter("all")}
+                className="p-0.5 ml-0.5 rounded text-slate-400 hover:text-slate-700 hover:bg-white/80 transition-colors cursor-pointer"
+                title="Pokaż wszystkie statusy"
+              >
+                <X size={11} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1246,6 +1284,7 @@ export default function ScheduleGantt() {
               type="button"
               onClick={() => {
                 setSearchTerm("");
+                setStageFilter("all");
                 setSelectedTeamIds([]);
                 setSelectedUserIds([]);
               }}
