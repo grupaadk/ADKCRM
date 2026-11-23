@@ -1020,7 +1020,7 @@ export default function ScheduleGantt() {
                 {filteredOrders.map((order) => {
                   const currentStageIdx = STAGE_ORDER[order.stageKey] ?? 0;
                   const unscheduledStages = STAGES.filter(
-                    (st) => !order[st.startField] && !order[st.endField],
+                    (st) => !order[st.startField] || !order[st.endField],
                   );
                   const assigneeColors = (order.assignees ?? [])
                     .map((a) => a.color)
