@@ -109,6 +109,7 @@ interface DragState {
   stageKey: StageKey;
   mode: "move" | "resize-start" | "resize-end";
   startX: number;
+  deltaPx: number;
   origStart: number;
   origEnd: number;
   previewStart: number;
@@ -158,6 +159,9 @@ export default function ScheduleGantt() {
   } | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [dragState, setDragState] = useState<DragState | null>(null);
+  const [pendingDates, setPendingDates] = useState<
+    Record<string, { start: number; end: number }>
+  >({});
   const [hoveredBar, setHoveredBar] = useState<{
     order: ScheduleOrder;
     stage: (typeof STAGES)[number];
@@ -385,7 +389,8 @@ export default function ScheduleGantt() {
     const handlePointerMove = (e: PointerEvent) => {
       const curr = dragRef.current;
       if (!curr) return;
-      const deltaDays = Math.round((e.clientX - curr.startX) / dayWidth);
+      const deltaPx = e.clientX - curr.startX;
+      const deltaDays = Math.round(deltaPx / dayWidth);
       let nextStart = curr.origStart;
       let nextEnd = curr.origEnd;
 
@@ -399,15 +404,31 @@ export default function ScheduleGantt() {
       }
 
       setDragState((prev) =>
-        prev ? { ...prev, previewStart: nextStart, previewEnd: nextEnd } : null,
+        prev
+          ? {
+              ...prev,
+              deltaPx,
+              previewStart: nextStart,
+              previewEnd: nextEnd,
+            }
+          : null,
       );
     };
 
     const handlePointerUp = async () => {
       const curr = dragRef.current;
-      setDragState(null);
-      if (!curr) return;
-      if (curr.previewStart === curr.origStart && curr.previewEnd === curr.origEnd) {
+      if (!curr) {
+        setDragState(null);
+        return;
+      }
+
+      const wasClick =
+        Math.abs(curr.deltaPx) < 4 &&
+        curr.previewStart === curr.origStart &&
+        curr.previewEnd === curr.origEnd;
+
+      if (wasClick) {
+        setDragState(null);
         const clickedOrder = orders?.find((o) => o._id === curr.orderId);
         if (clickedOrder) {
           setSelectedStageTarget({
@@ -418,6 +439,18 @@ export default function ScheduleGantt() {
         }
         return;
       }
+
+      if (curr.previewStart === curr.origStart && curr.previewEnd === curr.origEnd) {
+        setDragState(null);
+        return;
+      }
+
+      const pendingKey = `${curr.orderId}-${curr.stageKey}`;
+      setPendingDates((prev) => ({
+        ...prev,
+        [pendingKey]: { start: curr.previewStart, end: curr.previewEnd },
+      }));
+      setDragState(null);
 
       const stage = STAGE_BY_KEY[curr.stageKey];
       try {
@@ -430,14 +463,23 @@ export default function ScheduleGantt() {
       } catch (err) {
         console.error(err);
         toast.error("Nie udało się zapisać terminu.");
+      } finally {
+        setPendingDates((prev) => {
+          if (!(pendingKey in prev)) return prev;
+          const next = { ...prev };
+          delete next[pendingKey];
+          return next;
+        });
       }
     };
 
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
     return () => {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
     };
   }, [isDragging, dayWidth, updateOrder, orders]);
 
@@ -508,17 +550,23 @@ export default function ScheduleGantt() {
 
       const isDraggingA =
         dragState?.orderId === order._id && dragState.stageKey === stageA.key;
+      const pendingA = pendingDates[`${order._id}-${stageA.key}`];
       const rawStartA = isDraggingA
         ? dragState.previewStart
-        : order[stageA.startField];
-      const rawEndA = isDraggingA ? dragState.previewEnd : order[stageA.endField];
+        : (pendingA?.start ?? order[stageA.startField]);
+      const rawEndA = isDraggingA
+        ? dragState.previewEnd
+        : (pendingA?.end ?? order[stageA.endField]);
 
       const isDraggingB =
         dragState?.orderId === order._id && dragState.stageKey === stageB.key;
+      const pendingB = pendingDates[`${order._id}-${stageB.key}`];
       const rawStartB = isDraggingB
         ? dragState.previewStart
-        : order[stageB.startField];
-      const rawEndB = isDraggingB ? dragState.previewEnd : order[stageB.endField];
+        : (pendingB?.start ?? order[stageB.startField]);
+      const rawEndB = isDraggingB
+        ? dragState.previewEnd
+        : (pendingB?.end ?? order[stageB.endField]);
 
       if (!rawStartA && !rawEndA) continue;
       if (!rawStartB && !rawEndB) continue;
@@ -526,10 +574,40 @@ export default function ScheduleGantt() {
       const startNormA = normalizeDayStart(rawStartA ?? rawEndA!);
       const endNormA = normalizeDayStart(rawEndA ?? startNormA);
       const spanDaysA = Math.max(1, diffDays(startNormA, endNormA) + 1);
-      const rightA = (diffDays(windowStartTs, startNormA) + spanDaysA) * dayWidth;
+      let rightA = (diffDays(windowStartTs, startNormA) + spanDaysA) * dayWidth;
+      if (isDraggingA) {
+        const origSpanA = Math.max(
+          1,
+          diffDays(dragState.origStart, dragState.origEnd) + 1,
+        );
+        const origLeftA = diffDays(windowStartTs, dragState.origStart) * dayWidth;
+        const origWidthA = Math.max(dayWidth, origSpanA * dayWidth);
+        if (dragState.mode === "move") {
+          rightA = origLeftA + dragState.deltaPx + origWidthA;
+        } else if (dragState.mode === "resize-end") {
+          rightA = origLeftA + Math.max(dayWidth, origWidthA + dragState.deltaPx);
+        } else {
+          rightA = origLeftA + origWidthA;
+        }
+      }
 
       const startNormB = normalizeDayStart(rawStartB ?? rawEndB!);
-      const leftB = diffDays(windowStartTs, startNormB) * dayWidth;
+      let leftB = diffDays(windowStartTs, startNormB) * dayWidth;
+      if (isDraggingB) {
+        const origSpanB = Math.max(
+          1,
+          diffDays(dragState.origStart, dragState.origEnd) + 1,
+        );
+        const origLeftB = diffDays(windowStartTs, dragState.origStart) * dayWidth;
+        const origRightB = origLeftB + Math.max(dayWidth, origSpanB * dayWidth);
+        if (dragState.mode === "move") {
+          leftB = origLeftB + dragState.deltaPx;
+        } else if (dragState.mode === "resize-start") {
+          leftB = Math.min(origLeftB + dragState.deltaPx, origRightB - dayWidth);
+        } else {
+          leftB = origLeftB;
+        }
+      }
 
       if (leftB > rightA) {
         const gapWidth = leftB - rightA;
@@ -562,13 +640,14 @@ export default function ScheduleGantt() {
   ) => {
     const isDraggingThis =
       dragState?.orderId === order._id && dragState.stageKey === stage.key;
+    const pending = pendingDates[`${order._id}-${stage.key}`];
 
     const rawStart = isDraggingThis
       ? dragState.previewStart
-      : order[stage.startField];
+      : (pending?.start ?? order[stage.startField]);
     const rawEnd = isDraggingThis
       ? dragState.previewEnd
-      : order[stage.endField];
+      : (pending?.end ?? order[stage.endField]);
 
     if (!rawStart && !rawEnd) {
       return null;
@@ -579,8 +658,28 @@ export default function ScheduleGantt() {
     const endNorm = normalizeDayStart(rawEnd ?? startNorm);
     const spanDays = Math.max(1, diffDays(startNorm, endNorm) + 1);
 
-    const leftPx = diffDays(windowStartTs, startNorm) * dayWidth;
-    const widthPx = Math.max(dayWidth, spanDays * dayWidth);
+    let leftPx = diffDays(windowStartTs, startNorm) * dayWidth;
+    let widthPx = Math.max(dayWidth, spanDays * dayWidth);
+
+    if (isDraggingThis) {
+      const origSpanDays = Math.max(
+        1,
+        diffDays(dragState.origStart, dragState.origEnd) + 1,
+      );
+      const origLeftPx = diffDays(windowStartTs, dragState.origStart) * dayWidth;
+      const origWidthPx = Math.max(dayWidth, origSpanDays * dayWidth);
+      if (dragState.mode === "move") {
+        leftPx = origLeftPx + dragState.deltaPx;
+        widthPx = origWidthPx;
+      } else if (dragState.mode === "resize-start") {
+        const origRightPx = origLeftPx + origWidthPx;
+        leftPx = Math.min(origLeftPx + dragState.deltaPx, origRightPx - dayWidth);
+        widthPx = origRightPx - leftPx;
+      } else {
+        leftPx = origLeftPx;
+        widthPx = Math.max(dayWidth, origWidthPx + dragState.deltaPx);
+      }
+    }
 
     if (leftPx + widthPx < 0 || leftPx > timelineWidth) {
       return null;
@@ -615,6 +714,7 @@ export default function ScheduleGantt() {
               stageKey: stage.key,
               mode: "move",
               startX: e.clientX,
+              deltaPx: 0,
               origStart: startNorm,
               origEnd: endNorm,
               previewStart: startNorm,
@@ -659,7 +759,11 @@ export default function ScheduleGantt() {
             borderColor: "#fff",
             opacity: isDraggingThis ? 0.85 : 1,
           }}
-          className={`group absolute z-10 rounded-lg text-white text-[11px] font-semibold flex items-center shadow-sm cursor-grab active:cursor-grabbing select-none overflow-hidden transition-all ${
+          className={`group absolute z-10 rounded-lg text-white text-[11px] font-semibold flex items-center shadow-sm cursor-grab active:cursor-grabbing select-none overflow-hidden ${
+            isDraggingThis
+              ? "transition-none z-20 shadow-lg"
+              : "transition-[left,width,box-shadow,opacity] duration-150 ease-out"
+          } ${
             isRecent
               ? "ring-2 ring-white ring-offset-2 ring-offset-cyan-500 shadow-lg animate-pulse"
               : isCurrent
@@ -680,6 +784,7 @@ export default function ScheduleGantt() {
                 stageKey: stage.key,
                 mode: "resize-start",
                 startX: e.clientX,
+                deltaPx: 0,
                 origStart: startNorm,
                 origEnd: endNorm,
                 previewStart: startNorm,
@@ -728,6 +833,7 @@ export default function ScheduleGantt() {
                 stageKey: stage.key,
                 mode: "resize-end",
                 startX: e.clientX,
+                deltaPx: 0,
                 origStart: startNorm,
                 origEnd: endNorm,
                 previewStart: startNorm,
@@ -787,7 +893,11 @@ export default function ScheduleGantt() {
               height: 6,
               opacity: isDraggingThis ? 0.85 : 1,
             }}
-            className="absolute z-10 rounded-full bg-slate-200 border border-slate-300/70 overflow-hidden cursor-pointer"
+            className={`absolute z-10 rounded-full bg-slate-200 border border-slate-300/70 overflow-hidden cursor-pointer ${
+              isDraggingThis
+                ? "transition-none"
+                : "transition-[left,width] duration-150 ease-out"
+            }`}
           >
             <div
               className="h-full rounded-full transition-all duration-300"
