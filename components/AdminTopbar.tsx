@@ -20,6 +20,8 @@ const ROUTE_LABELS: Record<string, string> = {
   "/admin/ustawienia": "Ustawienia",
   "/admin/logi": "Logi systemu",
   "/admin/nowy": "Nowy klient",
+  "/admin/oferta": "Oferty & Konfigurator CAD",
+  "/admin/oferta/cenniki": "Cenniki zabudowy i zadaszeń",
 }
 
 function getTitle(pathname: string): string {

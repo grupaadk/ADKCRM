@@ -30,6 +30,7 @@ import {
   UserPlus,
   Building2,
   Briefcase,
+  TableProperties,
 } from "lucide-react";
 
 type SortField =
@@ -537,15 +538,26 @@ function OfertaPageContent() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowNewOfferModal(true)}
-          className="btn primary"
-          style={{ padding: "8px 16px", fontSize: 13 }}
-        >
-          <Plus size={16} strokeWidth={2.5} />
-          <span>Nowa oferta dla szansy</span>
-        </button>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <Link
+            href="/admin/oferta/cenniki"
+            className="btn"
+            style={{ padding: "8px 14px", fontSize: 13 }}
+          >
+            <TableProperties size={15} className="text-[#0e7490]" />
+            <span>Cenniki zabudowy i zadaszeń</span>
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => setShowNewOfferModal(true)}
+            className="btn primary"
+            style={{ padding: "8px 16px", fontSize: 13 }}
+          >
+            <Plus size={16} strokeWidth={2.5} />
+            <span>Nowa oferta dla szansy</span>
+          </button>
+        </div>
       </div>
 
       {/* Search Bar & View Mode Toggle */}
