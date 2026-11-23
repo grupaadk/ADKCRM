@@ -41,8 +41,8 @@ const STAGE_ORDER: Record<StageKey, number> = {
 
 const ZOOM_DAY_WIDTH: Record<ZoomLevel, number> = {
   day: 44,
-  week: 24,
-  month: 12,
+  week: 26,
+  month: 18,
 };
 
 const STAGES: Array<{
@@ -392,7 +392,7 @@ export default function ScheduleGantt({
   }, [dragState]);
 
   const dayWidth = ZOOM_DAY_WIDTH[zoom];
-  const totalDays = zoom === "month" ? 120 : zoom === "week" ? 90 : 75;
+  const totalDays = zoom === "month" ? 150 : zoom === "week" ? 90 : 75;
   const todayTs = useMemo(() => normalizeDayStart(liveNow.getTime()), [liveNow]);
   const isDragging = dragState !== null;
 
@@ -1177,7 +1177,7 @@ export default function ScheduleGantt({
                 borderColor: "var(--line)",
                 background: "var(--background, #f8fafc)",
                 color: "var(--text-strong)",
-                width: 190,
+                width: 165,
               }}
             />
             {searchTerm && (
@@ -1584,9 +1584,13 @@ export default function ScheduleGantt({
                               : "transparent",
                             color: isToday ? "#0e7490" : isWeekend ? "var(--text-mute)" : "var(--text)",
                           }}
-                          className="shrink-0 py-1 text-center border-r text-[10px] leading-tight select-none"
+                          className={`shrink-0 py-1 text-center border-r leading-tight select-none tabular-nums ${
+                            zoom === "month" ? "text-[9px]" : "text-[10px]"
+                          }`}
                         >
-                          <div className="font-bold">{d.getDate()}</div>
+                          <div className={zoom === "month" ? "font-semibold" : "font-bold"}>
+                            {d.getDate()}
+                          </div>
                           {zoom === "day" && (
                             <div className="text-[9px] opacity-75">{WEEKDAY_SHORT[dow]}</div>
                           )}
