@@ -17,7 +17,6 @@ import {
   ExternalLink,
   ListChecks,
   Search,
-  SlidersHorizontal,
   Trash2,
   X,
 } from "lucide-react";
@@ -155,7 +154,6 @@ export default function ScheduleGantt() {
   const orders = useQuery(api.orders.listForSchedule) as ScheduleOrder[] | undefined;
   const updateOrder = useMutation(api.orders.update);
 
-  const [onlyUnscheduled, setOnlyUnscheduled] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [teamFilter, setTeamFilter] = useState<string>("all");
   const [zoom, setZoom] = useState<ZoomLevel>("day");
@@ -287,20 +285,13 @@ export default function ScheduleGantt() {
     const q = searchTerm.trim().toLowerCase();
     return orders.filter((o) => {
       if (teamFilter !== "all" && o.installationTeamId !== teamFilter) return false;
-      if (onlyUnscheduled) {
-        const isFullyScheduled =
-          Boolean(o.completionStartDate && o.completionEndDate) &&
-          Boolean(o.productionStartDate && o.productionEndDate) &&
-          Boolean(o.installationPhaseStartDate && o.installationPhaseEndDate);
-        if (isFullyScheduled) return false;
-      }
       if (q) {
         const hay = `${o.customText ?? ""} ${o.name} ${o.clientName} ${o.investmentCity}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [orders, teamFilter, onlyUnscheduled, searchTerm]);
+  }, [orders, teamFilter, searchTerm]);
 
   const scrollToToday = useCallback(() => {
     const el = timelineScrollRef.current;
@@ -801,20 +792,6 @@ export default function ScheduleGantt() {
               </React.Fragment>
             ))}
           </div>
-
-          <button
-            type="button"
-            onClick={() => setOnlyUnscheduled((v) => !v)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer"
-            style={{
-              background: onlyUnscheduled ? "rgba(245, 158, 11, 0.14)" : "transparent",
-              color: onlyUnscheduled ? "#b45309" : "var(--text-mute)",
-              border: `1px solid ${onlyUnscheduled ? "rgba(245, 158, 11, 0.45)" : "var(--line)"}`,
-            }}
-          >
-            <SlidersHorizontal size={12} />
-            Bez pełnych dat
-          </button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
