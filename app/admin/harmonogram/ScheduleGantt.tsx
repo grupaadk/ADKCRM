@@ -1614,10 +1614,13 @@ export default function ScheduleGantt() {
                           </div>
 
                           {/* Dependency connector lines between milestones */}
-                          {renderConnectors(order)}
+                          {stageFilter === "all" && renderConnectors(order)}
 
                           {/* Milestone bars */}
-                          {STAGES.map((stage) =>
+                          {STAGES.filter(
+                            (stage) =>
+                              stageFilter === "all" || stage.key === stageFilter,
+                          ).map((stage) =>
                             renderStageBar(order, stage, currentStageIdx),
                           )}
                         </div>
