@@ -97,9 +97,11 @@ export default function StageTasksDrawer({
   const createItem = useMutation(api.stageChecklists.create);
   const toggleItem = useMutation(api.stageChecklists.toggle);
   const removeItem = useMutation(api.stageChecklists.remove);
+  const updateOrder = useMutation(api.orders.update);
 
   const [newItemTitle, setNewItemTitle] = useState("");
   const [adding, setAdding] = useState(false);
+  const [clearingDates, setClearingDates] = useState(false);
 
   const checklistItems = items ?? [];
   const totalCount = checklistItems.length;
@@ -114,8 +116,28 @@ export default function StageTasksDrawer({
     ? (order[stage.endField as keyof typeof order] as number | undefined)
     : undefined;
   const hasDates = Boolean(rawStart && rawEnd);
+  const hasAnyDate = Boolean(rawStart || rawEnd);
   const spanDays = hasDates ? Math.max(1, diffDays(rawStart!, rawEnd!) + 1) : null;
   const isCurrentOrderStage = Boolean(order && stageKey && order.stageKey === stageKey);
+
+  const handleClearStageDates = async () => {
+    if (!order || !stageKey || clearingDates) return;
+    setClearingDates(true);
+    try {
+      await updateOrder({
+        orderId: order._id,
+        [stage.startField]: null,
+        [stage.endField]: null,
+      });
+      toast.success(`Usunięto termin etapu: ${stage.label}`);
+      onClose();
+    } catch (err) {
+      console.error(err);
+      toast.error("Nie udało się usunąć terminu etapu.");
+    } finally {
+      setClearingDates(false);
+    }
+  };
 
   const handleAddItem = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -221,16 +243,37 @@ export default function StageTasksDrawer({
 
             {/* Timeline Dates row */}
             <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-1.5 text-slate-600">
-                <Calendar size={13} className="text-slate-400" />
+              <div className="flex items-center gap-1.5 text-slate-600 min-w-0">
+                <Calendar size={13} className="text-slate-400 shrink-0" />
                 {hasDates ? (
-                  <span className="font-medium">
+                  <span className="font-medium truncate">
                     {formatPlDate(rawStart)} – {formatPlDate(rawEnd)} ({spanDays} dni)
+                  </span>
+                ) : rawStart ? (
+                  <span className="font-medium truncate">
+                    od {formatPlDate(rawStart)} (brak daty końca)
+                  </span>
+                ) : rawEnd ? (
+                  <span className="font-medium truncate">
+                    do {formatPlDate(rawEnd)}
                   </span>
                 ) : (
                   <span className="italic text-slate-400">Brak ustalonego terminu</span>
                 )}
               </div>
+
+              {hasAnyDate && (
+                <button
+                  type="button"
+                  onClick={() => void handleClearStageDates()}
+                  disabled={clearingDates}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-rose-600 bg-white border border-rose-200/80 hover:bg-rose-50 hover:border-rose-300 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                  title="Usuń belkę tego etapu z osi czasu"
+                >
+                  <Trash2 size={12} />
+                  <span>{clearingDates ? "Usuwanie…" : "Usuń z osi"}</span>
+                </button>
+              )}
             </div>
           </div>
 
