@@ -129,10 +129,19 @@ export const listForSchedule = query({
           .filter((id): id is Id<"installationTeams"> => Boolean(id)),
       ),
     );
+    const uniqueUserIds = Array.from(
+      new Set(
+        orders.flatMap((o) => [
+          ...(o.assignedUserId ? [o.assignedUserId] : []),
+          ...(o.assignedUserIds ?? []),
+        ]),
+      ),
+    );
 
-    const [clientsList, teamsList, checklistsByOrder] = await Promise.all([
+    const [clientsList, teamsList, usersList, checklistsByOrder] = await Promise.all([
       Promise.all(uniqueClientIds.map((id) => ctx.db.get(id))),
       Promise.all(uniqueTeamIds.map((id) => ctx.db.get(id))),
+      Promise.all(uniqueUserIds.map((id) => ctx.db.get(id))),
       Promise.all(
         orders.map((o) =>
           ctx.db
@@ -152,6 +161,11 @@ export const listForSchedule = query({
       teamsList
         .filter((t): t is Doc<"installationTeams"> => t !== null)
         .map((t) => [t._id, t]),
+    );
+    const userMap = new Map(
+      usersList
+        .filter((u): u is Doc<"users"> => u !== null)
+        .map((u) => [u._id, u]),
     );
     const defMap = new Map(matchingDefs.map((d) => [d.key, d]));
 
@@ -180,6 +194,21 @@ export const listForSchedule = query({
           if (item.done) bucket.done += 1;
         }
 
+        const assigneeIds = Array.from(
+          new Set([
+            ...(order.assignedUserId ? [order.assignedUserId] : []),
+            ...(order.assignedUserIds ?? []),
+          ]),
+        );
+        const assignees = assigneeIds
+          .map((uid) => userMap.get(uid))
+          .filter((u): u is Doc<"users"> => Boolean(u))
+          .map((u) => ({
+            id: u._id,
+            name: u.displayName ?? u.email ?? null,
+            color: u.color ?? undefined,
+          }));
+
         return {
           _id: order._id,
           clientId: order.clientId,
@@ -202,6 +231,7 @@ export const listForSchedule = query({
           installationPhaseStartDate: order.installationPhaseStartDate,
           installationPhaseEndDate: order.installationPhaseEndDate,
           stageProgress,
+          assignees,
         };
       })
       .sort((a, b) => (b.statusChangedAt ?? 0) - (a.statusChangedAt ?? 0));

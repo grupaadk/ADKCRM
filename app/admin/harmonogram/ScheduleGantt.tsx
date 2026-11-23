@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 
 const MS_PER_DAY = 86_400_000;
-const LEFT_PANEL_WIDTH = 340;
+const LEFT_PANEL_WIDTH = 260;
 
 type StageKey = "kitting" | "production" | "installation";
 type ZoomLevel = "day" | "week" | "month";
@@ -106,6 +106,11 @@ interface ScheduleOrder {
   installationPhaseStartDate?: number;
   installationPhaseEndDate?: number;
   stageProgress?: Record<StageKey, { done: number; total: number }>;
+  assignees?: Array<{
+    id: Id<"users">;
+    name: string | null;
+    color?: string;
+  }>;
 }
 
 interface DragState {
@@ -960,17 +965,15 @@ export default function ScheduleGantt() {
               >
                 {/* Sticky top-left corner */}
                 <div
-                  className="sticky left-0 z-30 shrink-0 w-[340px] px-3.5 py-2 border-r flex items-center justify-between text-[11px] font-bold uppercase tracking-wider shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
+                  className="sticky left-0 z-30 shrink-0 px-3.5 py-2 border-r flex items-center text-[11px] font-bold uppercase tracking-wider shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
                   style={{
+                    width: LEFT_PANEL_WIDTH,
                     borderColor: "var(--line, #e5e7eb)",
                     background: "#ffffff",
                     color: "var(--text-mute)",
                   }}
                 >
                   <span>Zlecenie / Klient</span>
-                  <span className="text-[10px] text-slate-400 normal-case font-semibold">
-                    Etapy (K ➔ P ➔ M)
-                  </span>
                 </div>
 
                 {/* Timeline Header */}
@@ -1036,6 +1039,22 @@ export default function ScheduleGantt() {
 
                 {filteredOrders.map((order) => {
                   const currentStageIdx = STAGE_ORDER[order.stageKey] ?? 0;
+                  const assigneeColors = (order.assignees ?? [])
+                    .map((a) => a.color)
+                    .filter((c): c is string => Boolean(c));
+                  const assigneeNames = (order.assignees ?? [])
+                    .map((a) => a.name)
+                    .filter((n): n is string => Boolean(n))
+                    .join(", ");
+                  const userStripeBg =
+                    assigneeColors.length > 1
+                      ? `linear-gradient(to bottom, ${assigneeColors
+                          .map((c, i) => {
+                            const step = 100 / assigneeColors.length;
+                            return `${c} ${i * step}%, ${c} ${(i + 1) * step}%`;
+                          })
+                          .join(", ")})`
+                      : assigneeColors[0];
 
                   return (
                     <div
@@ -1052,12 +1071,20 @@ export default function ScheduleGantt() {
                       >
                         {/* Left sticky cell */}
                         <div
-                          className="sticky left-0 z-20 shrink-0 w-[340px] px-3.5 py-2 border-r flex items-center justify-between gap-2.5 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
+                          className="sticky left-0 z-20 shrink-0 pl-4 pr-3.5 py-2 border-r flex items-center shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
                           style={{
+                            width: LEFT_PANEL_WIDTH,
                             borderColor: "var(--line, #e5e7eb)",
                             background: "#ffffff",
                           }}
                         >
+                          {userStripeBg && (
+                            <div
+                              className="absolute left-0 top-0 bottom-0 w-1.5"
+                              style={{ background: userStripeBg }}
+                              title={assigneeNames || undefined}
+                            />
+                          )}
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
                               <Link
@@ -1083,101 +1110,6 @@ export default function ScheduleGantt() {
                                 ? ` • ${order.installationTeamName}`
                                 : ""}
                             </div>
-                          </div>
-
-                          {/* Milestone Stepper */}
-                          <div className="flex items-center gap-0.5 shrink-0 bg-slate-100/80 p-0.5 rounded-lg border border-slate-200/70">
-                            {STAGES.map((st, idx) => {
-                              const isPlanned = Boolean(
-                                order[st.startField] && order[st.endField],
-                              );
-                              const stageIdx = STAGE_ORDER[st.key];
-                              const isDone = stageIdx < currentStageIdx;
-                              const isActive = stageIdx === currentStageIdx;
-                              const shortLetter =
-                                st.key === "kitting"
-                                  ? "K"
-                                  : st.key === "production"
-                                  ? "P"
-                                  : "M";
-
-                              const tooltip = isPlanned
-                                ? `${st.label}: ${formatPlDate(order[st.startField])} – ${formatPlDate(order[st.endField])} (${isActive ? "W TRAKCIE" : isDone ? "UKOŃCZONE" : "ZAPLANOWANE"})`
-                                : `Zaplanuj ${st.label} (kliknij, aby umieścić na osi czasu)`;
-
-                              return (
-                                <React.Fragment key={st.key}>
-                                  {idx > 0 && (
-                                    <span className="text-[9px] text-slate-300 select-none">
-                                      ›
-                                    </span>
-                                  )}
-                                  <button
-                                    type="button"
-                                    title={tooltip}
-                                    onClick={() => {
-                                      if (isPlanned) {
-                                        const s = order[st.startField];
-                                        if (s && timelineScrollRef.current) {
-                                          const offsetDays = diffDays(windowStartTs, s);
-                                          timelineScrollRef.current.scrollTo({
-                                            left: Math.max(
-                                              0,
-                                              (offsetDays - 3) * dayWidth,
-                                            ),
-                                            behavior: "smooth",
-                                          });
-                                        }
-                                        setRecentlyCreatedKey(
-                                          `${order._id}-${st.key}`,
-                                        );
-                                        setTimeout(
-                                          () => setRecentlyCreatedKey(null),
-                                          1500,
-                                        );
-                                        setSelectedStageTarget({
-                                          order,
-                                          stageKey: st.key,
-                                        });
-                                        setIsDrawerOpen(true);
-                                      } else {
-                                        void handleCreateStageBar(order, st.key);
-                                      }
-                                    }}
-                                    className={`h-6 px-1.5 rounded text-[10px] font-bold cursor-pointer transition-all inline-flex items-center gap-1 ${
-                                      isActive
-                                        ? "shadow-sm ring-1"
-                                        : ""
-                                    }`}
-                                    style={{
-                                      background: isPlanned
-                                        ? isActive
-                                          ? st.color
-                                          : st.bg
-                                        : "transparent",
-                                      color: isPlanned
-                                        ? isActive
-                                          ? "#ffffff"
-                                          : st.color
-                                        : "var(--text-mute)",
-                                      borderColor: st.border,
-                                      boxShadow: isActive
-                                        ? `0 0 0 1px ${st.color}`
-                                        : "none",
-                                    }}
-                                  >
-                                    {isDone ? (
-                                      <Check size={10} className="stroke-[3]" />
-                                    ) : isActive ? (
-                                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                                    ) : null}
-                                    <span>
-                                      {isPlanned ? shortLetter : `+${shortLetter}`}
-                                    </span>
-                                  </button>
-                                </React.Fragment>
-                              );
-                            })}
                           </div>
                         </div>
 
