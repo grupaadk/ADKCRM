@@ -27,6 +27,7 @@ import { getSupplierOrderIssues, type SupplierOrderStep } from "@/convex/lib/sup
 import TaskDrawer from "@/components/TaskDrawer";
 import SideDrawer from "@/components/SideDrawer";
 import CreateOrderTaskDrawer from "@/components/CreateOrderTaskDrawer";
+import OrderStageChecklist from "@/components/OrderStageChecklist";
 import InvestmentLocation from "../../InvestmentLocation";
 import Notes from "../../Notes";
 import InlineEdit from "../../InlineEdit";
@@ -772,7 +773,16 @@ function TodoTaskRow({
 }
 
 function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
+  const [activeTab, setActiveTab] = useState<"tasks" | "kitting" | "installation">("tasks");
   const tasks = useQuery(api.orderTasks.listByOrder, { orderId });
+  const kittingItems = useQuery(api.stageChecklists.listByOrderStage, {
+    orderId,
+    stageKey: "kitting",
+  });
+  const installationItems = useQuery(api.stageChecklists.listByOrderStage, {
+    orderId,
+    stageKey: "installation",
+  });
   const salesUsers = useQuery(api.users.listAssignable) ?? [];
   const me = useQuery(api.users.me);
   const updateTask = useMutation(api.orderTasks.update);
@@ -788,6 +798,16 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
   const [openTaskId, setOpenTaskId] = useState<Id<"orderTasks"> | null>(null);
 
   const openCount = tasks?.filter((t) => t.status !== "done").length ?? 0;
+  const kittingDone = kittingItems?.filter((i) => i.done).length ?? 0;
+  const kittingTotal = kittingItems?.length ?? 0;
+  const installationDone = installationItems?.filter((i) => i.done).length ?? 0;
+  const installationTotal = installationItems?.length ?? 0;
+  const activeAccentColor =
+    activeTab === "kitting"
+      ? "#0284c7"
+      : activeTab === "installation"
+      ? "#059669"
+      : "#3b82f6";
   const [now, setNow] = useState(0);
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -811,16 +831,16 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ width: 4, height: 20, borderRadius: 3, background: "#3b82f6", flexShrink: 0 }} />
-          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#3b82f6" strokeWidth={1.8}>
+          <span style={{ width: 4, height: 20, borderRadius: 3, background: activeAccentColor, flexShrink: 0, transition: "background 0.2s" }} />
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke={activeAccentColor} strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
           </svg>
           <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-strong)", textTransform: "uppercase", letterSpacing: 0.6 }}>
             Lista zadań
           </span>
-          {openCount > 0 && (
+          {activeTab === "tasks" && openCount > 0 && (
             <span style={{
               fontSize: 10, fontWeight: 700,
               background: "#eff6ff", color: "#1d4ed8",
@@ -830,7 +850,8 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
             </span>
           )}
         </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        {activeTab === "tasks" && (
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           {/* Zastosuj szablon dropdown */}
           {taskTemplates.length > 0 && (
             <div style={{ position: "relative" }}>
@@ -919,32 +940,111 @@ function TodoSection({ orderId }: { orderId: Id<"orders"> }) {
             </svg>
             Dodaj zadanie
           </button>
-        </div>
-      </div>
-
-      {/* Lista zadań */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
-        {tasks === undefined ? (
-          <div style={{ fontSize: 12.5, color: "var(--text-mute)" }}>Ładowanie...</div>
-        ) : sortedTasks.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: "var(--text-mute)", padding: "12px 14px", borderRadius: 8, background: "var(--panel-2)", border: "1px dashed var(--line)" }}>
-            Brak zadań w tym zleceniu. Kliknij „Dodaj zadanie”, aby dodać pierwsze zadanie.
           </div>
-        ) : (
-          sortedTasks.map((task) => (
-            <TodoTaskRow
-              key={task._id}
-              task={task as KanbanTask}
-              users={salesUsers as AssignableUser[]}
-              now={now}
-              currentUserId={me?._id}
-              onRemove={() => void removeTask({ taskId: task._id })}
-              onUpdate={(args) => void updateTask({ taskId: task._id, ...args })}
-              onOpenDrawer={() => setOpenTaskId(task._id)}
-            />
-          ))
         )}
       </div>
+
+      {/* Przełącznik: Lista zadań | Kompletacja | Montaż */}
+      <div
+        className="inline-flex items-center gap-1 p-1 rounded-lg border self-start"
+        style={{
+          background: "var(--panel-2, #f1f5f9)",
+          borderColor: "var(--line, #e2e8f0)",
+        }}
+      >
+        {(
+          [
+            {
+              key: "tasks" as const,
+              label: "Lista zadań",
+              dotColor: "#3b82f6",
+              badge: openCount > 0 ? String(openCount) : null,
+            },
+            {
+              key: "kitting" as const,
+              label: "Kompletacja",
+              dotColor: "#0284c7",
+              badge: kittingTotal > 0 ? `${kittingDone}/${kittingTotal}` : null,
+            },
+            {
+              key: "installation" as const,
+              label: "Montaż",
+              dotColor: "#059669",
+              badge:
+                installationTotal > 0
+                  ? `${installationDone}/${installationTotal}`
+                  : null,
+            },
+          ] as const
+        ).map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-semibold transition-all cursor-pointer ${
+                isActive ? "bg-white shadow-xs" : "hover:bg-white/60"
+              }`}
+              style={{
+                color: isActive ? "var(--text-strong)" : "var(--text-mute)",
+              }}
+            >
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{
+                  background: tab.dotColor,
+                  opacity: isActive ? 1 : 0.55,
+                }}
+              />
+              <span>{tab.label}</span>
+              {tab.badge && (
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.2 rounded-full tabular-nums"
+                  style={{
+                    background: isActive ? `${tab.dotColor}18` : "rgba(148,163,184,0.16)",
+                    color: isActive ? tab.dotColor : "var(--text-mute)",
+                  }}
+                >
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Zawartość aktywnej zakładki */}
+      {activeTab === "tasks" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 2 }}>
+          {tasks === undefined ? (
+            <div style={{ fontSize: 12.5, color: "var(--text-mute)" }}>Ładowanie...</div>
+          ) : sortedTasks.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: "var(--text-mute)", padding: "12px 14px", borderRadius: 8, background: "var(--panel-2)", border: "1px dashed var(--line)" }}>
+              Brak zadań w tym zleceniu. Kliknij „Dodaj zadanie”, aby dodać pierwsze zadanie.
+            </div>
+          ) : (
+            sortedTasks.map((task) => (
+              <TodoTaskRow
+                key={task._id}
+                task={task as KanbanTask}
+                users={salesUsers as AssignableUser[]}
+                now={now}
+                currentUserId={me?._id}
+                onRemove={() => void removeTask({ taskId: task._id })}
+                onUpdate={(args) => void updateTask({ taskId: task._id, ...args })}
+                onOpenDrawer={() => setOpenTaskId(task._id)}
+              />
+            ))
+          )}
+        </div>
+      ) : (
+        <OrderStageChecklist
+          orderId={orderId}
+          stageKey={activeTab}
+          items={activeTab === "kitting" ? kittingItems : installationItems}
+        />
+      )}
 
       <TaskDrawer taskId={openTaskId} onClose={() => setOpenTaskId(null)} />
       <CreateOrderTaskDrawer
