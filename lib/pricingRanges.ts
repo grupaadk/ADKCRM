@@ -46,6 +46,22 @@ export const DEFAULT_TRIANGLE_PRICING_RANGES: PricingRangeItem[] = [
 ];
 
 /**
+ * Zwraca 9 progów dla trójkątów tarasowych z ceną netto przeliczoną wg zadanego mnożnika narzutu
+ * (domyślnie 1.52 = +52%).
+ */
+export function getTrianglePricingRanges(
+  materialMarkupMultiplier = 1.52
+): PricingRangeItem[] {
+  return DEFAULT_TRIANGLE_PRICING_RANGES.map((range) => {
+    const cost = range.costNet ?? 0;
+    return {
+      ...range,
+      priceNet: Math.round(cost * materialMarkupMultiplier),
+    };
+  });
+}
+
+/**
  * Dopasowuje odpowiedni próg cenowy dla podanej szerokości B (w mm).
  * Jeśli szerokość wykracza poza zakresy, zwraca skrajny (najbliższy) próg.
  */

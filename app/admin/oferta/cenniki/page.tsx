@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import {
   ArrowLeft,
   TableProperties,
@@ -11,6 +13,10 @@ import {
   Wrench,
   Ruler,
   Percent,
+  Save,
+  RotateCcw,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { fmtPLN } from "@/components/crm-ui";
 import {
@@ -18,7 +24,7 @@ import {
   GLASS_PRICING_CONFIG,
   STANDARD_MODULE_WIDTHS_CM,
 } from "@/lib/glassPricing";
-import { DEFAULT_TRIANGLE_PRICING_RANGES } from "@/lib/pricingRanges";
+import { getTrianglePricingRanges } from "@/lib/pricingRanges";
 import {
   ROOF_BASE_CATALOG,
   ROOF_PRICING_CONFIG,
@@ -32,6 +38,8 @@ import {
 type ActiveTab = "zabudowa" | "zadaszenia";
 type PriceViewMode = "price" | "cost";
 
+const DEFAULT_MARKUP_PERCENT = 52;
+
 const ROOF_INSTALL_TIERS = [
   { label: "do 10 m²", sampleArea: 10 },
   { label: "10,01 – 15 m²", sampleArea: 15 },
@@ -40,17 +48,97 @@ const ROOF_INSTALL_TIERS = [
   { label: "powyżej 25 m²", sampleArea: 30 },
 ] as const;
 
+function parsePercentInput(raw: string | null, fallback: number): number {
+  if (raw === null) return fallback;
+  const normalized = raw.replace(",", ".").trim();
+  if (!normalized) return fallback;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 500) return fallback;
+  return parsed;
+}
+
 export default function OfferPriceListsPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("zabudowa");
   const [roofCover, setRoofCover] = useState<RoofCoverType>("polycarbonate");
   const [roofViewMode, setRoofViewMode] = useState<PriceViewMode>("price");
 
-  const glassMarkupPct = Math.round(
-    (GLASS_PRICING_CONFIG.materialMarkupMultiplier - 1) * 100
-  );
-  const roofMarkupPct = Math.round(
-    (ROOF_PRICING_CONFIG.materialMarkupMultiplier - 1) * 100
-  );
+  const pricingConfig = useQuery(api.crmConfig.getPricingConfig);
+  const me = useQuery(api.users.me);
+  const savePricingConfig = useMutation(api.crmConfig.savePricingConfig);
+
+  const isAdmin = me?.role === "admin";
+  const savedGlassPercent =
+    pricingConfig?.glassMaterialMarkupPercent ?? DEFAULT_MARKUP_PERCENT;
+  const savedRoofPercent =
+    pricingConfig?.roofMaterialMarkupPercent ?? DEFAULT_MARKUP_PERCENT;
+
+  const [glassDraft, setGlassDraft] = useState<string | null>(null);
+  const [roofDraft, setRoofDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const glassInputValue = glassDraft ?? String(savedGlassPercent);
+  const roofInputValue = roofDraft ?? String(savedRoofPercent);
+
+  const effectiveGlassPercent = parsePercentInput(glassDraft, savedGlassPercent);
+  const effectiveRoofPercent = parsePercentInput(roofDraft, savedRoofPercent);
+  const effectiveGlassMultiplier = 1 + effectiveGlassPercent / 100;
+  const effectiveRoofMultiplier = 1 + effectiveRoofPercent / 100;
+
+  const isDirty =
+    effectiveGlassPercent !== savedGlassPercent ||
+    effectiveRoofPercent !== savedRoofPercent;
+
+  const triangleRanges = getTrianglePricingRanges(effectiveGlassMultiplier);
+
+  const handleSaveMarkups = async () => {
+    setSaveError(null);
+    setSaveMessage(null);
+    const parsedGlass = Number(glassInputValue.replace(",", ".").trim());
+    const parsedRoof = Number(roofInputValue.replace(",", ".").trim());
+    if (
+      !Number.isFinite(parsedGlass) ||
+      parsedGlass < 0 ||
+      parsedGlass > 500
+    ) {
+      setSaveError("Narzut dla zabudowy musi być liczbą z zakresu 0–500%.");
+      return;
+    }
+    if (!Number.isFinite(parsedRoof) || parsedRoof < 0 || parsedRoof > 500) {
+      setSaveError("Narzut dla zadaszeń musi być liczbą z zakresu 0–500%.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await savePricingConfig({
+        glassMaterialMarkupPercent: parsedGlass,
+        roofMaterialMarkupPercent: parsedRoof,
+      });
+      setGlassDraft(null);
+      setRoofDraft(null);
+      setSaveMessage("Zapisano narzuty na materiał.");
+      setTimeout(() => setSaveMessage(null), 3500);
+    } catch (err) {
+      setSaveError(
+        err instanceof Error ? err.message : "Nie udało się zapisać narzutów."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelDraft = () => {
+    setGlassDraft(null);
+    setRoofDraft(null);
+    setSaveError(null);
+  };
+
+  const handleResetDefaults = () => {
+    setGlassDraft(String(DEFAULT_MARKUP_PERCENT));
+    setRoofDraft(String(DEFAULT_MARKUP_PERCENT));
+    setSaveError(null);
+  };
 
   return (
     <div className="space-y-5">
@@ -80,13 +168,140 @@ export default function OfferPriceListsPage() {
         </Link>
       </div>
 
-      {/* Info banner */}
-      <div className="panel p-3.5 flex items-start gap-3 bg-[#f8fafc] border border-[#e2e8f0]">
-        <Info size={16} className="text-[#0e7490] shrink-0 mt-0.5" />
-        <p className="text-xs text-[#475569] leading-relaxed">
-          Poniższe stawki służą jako domyślna baza wyliczeń w algorytmie ofertowym. W konfiguratorze CAD
-          każdej oferty nadal możesz ręcznie nadpisać cenę materiału, montażu lub dowolnej pozycji.
-        </p>
+      {/* Configurable Material Markup Panel */}
+      <div className="panel p-4 space-y-3 border border-[#d4dae3]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Percent size={15} className="text-[#0e7490]" />
+            <h2 className="text-sm font-bold text-[#0b1220]">
+              Konfiguracja narzutu na materiał
+            </h2>
+            {isDirty && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#fef3c7] text-[#92400e]">
+                Podgląd niezapisanych zmian
+              </span>
+            )}
+            {saveMessage && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#dcfce7] text-[#166534]">
+                <Check size={12} />
+                {saveMessage}
+              </span>
+            )}
+          </div>
+          {!isAdmin && me !== undefined && (
+            <span className="text-[11px] text-[#7c8597]">
+              Edycja narzutów dostępna dla administratora
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
+          <label className="block space-y-1">
+            <span className="text-xs font-semibold text-[#334155]">
+              Zabudowa szklana i trójkąty (%)
+            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                max={500}
+                step={0.5}
+                disabled={!isAdmin || saving}
+                value={glassInputValue}
+                onChange={(e) => {
+                  setGlassDraft(e.target.value);
+                  setSaveError(null);
+                }}
+                className="w-28 px-2.5 py-1.5 text-sm font-semibold text-[#0b1220] bg-[#f8fafc] border border-[#cbd5e1] rounded-md focus:outline-none focus:border-[#4ABBC3] focus:bg-white disabled:opacity-60 tabular-nums"
+              />
+              <span className="text-xs text-[#64748b] tabular-nums">
+                % (mnożnik ×{effectiveGlassMultiplier.toFixed(2)})
+              </span>
+            </div>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-xs font-semibold text-[#334155]">
+              Zadaszenia aluminiowe (%)
+            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                max={500}
+                step={0.5}
+                disabled={!isAdmin || saving}
+                value={roofInputValue}
+                onChange={(e) => {
+                  setRoofDraft(e.target.value);
+                  setSaveError(null);
+                }}
+                className="w-28 px-2.5 py-1.5 text-sm font-semibold text-[#0b1220] bg-[#f8fafc] border border-[#cbd5e1] rounded-md focus:outline-none focus:border-[#4ABBC3] focus:bg-white disabled:opacity-60 tabular-nums"
+              />
+              <span className="text-xs text-[#64748b] tabular-nums">
+                % (mnożnik ×{effectiveRoofMultiplier.toFixed(2)})
+              </span>
+            </div>
+          </label>
+
+          {isAdmin && (
+            <div className="flex items-center gap-2 flex-wrap lg:justify-end">
+              <button
+                type="button"
+                onClick={handleSaveMarkups}
+                disabled={!isDirty || saving}
+                className="btn primary disabled:opacity-50"
+                style={{ padding: "7px 14px", fontSize: 12.5 }}
+              >
+                {saving ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Save size={14} />
+                )}
+                <span>Zapisz narzuty</span>
+              </button>
+
+              {isDirty && (
+                <button
+                  type="button"
+                  onClick={handleCancelDraft}
+                  disabled={saving}
+                  className="btn"
+                  style={{ padding: "7px 12px", fontSize: 12.5 }}
+                >
+                  <span>Anuluj</span>
+                </button>
+              )}
+
+              {(effectiveGlassPercent !== DEFAULT_MARKUP_PERCENT ||
+                effectiveRoofPercent !== DEFAULT_MARKUP_PERCENT) && (
+                <button
+                  type="button"
+                  onClick={handleResetDefaults}
+                  disabled={saving}
+                  className="btn"
+                  style={{ padding: "7px 12px", fontSize: 12.5 }}
+                  title="Przywraca domyślny narzut 52% w formularzu"
+                >
+                  <RotateCcw size={13} />
+                  <span>Domyślne (52%)</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {saveError && (
+          <p className="text-xs font-medium text-[#b91c1c]">{saveError}</p>
+        )}
+
+        <div className="flex items-start gap-2 pt-1 border-t border-[#eef2f6]">
+          <Info size={14} className="text-[#0e7490] shrink-0 mt-0.5" />
+          <p className="text-[11px] text-[#64748b] leading-relaxed">
+            Zmiana narzutu obowiązuje dla nowo dodawanych pozycji i przeliczeń wymiarów. Istniejące zapisane
+            oferty oraz ręcznie nadpisane ceny materiału i montażu w konfiguratorze CAD pozostają bez zmian.
+          </p>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -140,8 +355,8 @@ export default function OfferPriceListsPage() {
                 <span>Materiał i niestandard</span>
               </div>
               <p className="text-xs text-[#475569] leading-relaxed">
-                Narzut na materiał: <strong>+{glassMarkupPct}%</strong> (×
-                {GLASS_PRICING_CONFIG.materialMarkupMultiplier}). Dla wymiaru{" "}
+                Narzut na materiał: <strong>+{effectiveGlassPercent}%</strong> (×
+                {effectiveGlassMultiplier.toFixed(2)}). Dla wymiaru{" "}
                 <strong>NIESTANDARD</strong>: szkło{" "}
                 <strong>
                   {GLASS_PRICING_CONFIG.glassPurchasePricePerM2} zł/m²
@@ -180,7 +395,7 @@ export default function OfferPriceListsPage() {
                 </p>
               </div>
               <span className="text-[11px] font-medium text-[#0e7490] bg-[rgba(74,187,195,0.12)] px-2.5 py-1 rounded-full">
-                Narzut materiału: +{glassMarkupPct}%
+                Narzut materiału: +{effectiveGlassPercent}%
               </span>
             </div>
 
@@ -197,7 +412,7 @@ export default function OfferPriceListsPage() {
                       STANDARD koszt
                     </th>
                     <th className="py-2.5 px-3 font-semibold text-right bg-[#f0fdfa] text-[#0f766e]">
-                      STANDARD cena (+{glassMarkupPct}%)
+                      STANDARD cena (+{effectiveGlassPercent}%)
                     </th>
                     <th className="py-2.5 px-3 font-semibold text-right bg-[#fffbeb] text-[#92400e]">
                       NIESTANDARD profile (bez szkła)
@@ -211,8 +426,7 @@ export default function OfferPriceListsPage() {
                   {STANDARD_MODULE_WIDTHS_CM.map((widthCm) => {
                     const row = GLASS_MODULE_CATALOG[widthCm];
                     const stdPrice = Math.round(
-                      row.standardCostNet *
-                        GLASS_PRICING_CONFIG.materialMarkupMultiplier
+                      row.standardCostNet * effectiveGlassMultiplier
                     );
                     const installPrice = Math.round(
                       (widthCm / 100) * GLASS_PRICING_CONFIG.installationPricePerMb
@@ -266,7 +480,7 @@ export default function OfferPriceListsPage() {
                 </p>
               </div>
               <span className="text-[11px] font-medium text-[#0e7490] bg-[rgba(74,187,195,0.12)] px-2.5 py-1 rounded-full">
-                9 progów szerokości · narzut +52%
+                9 progów szerokości · narzut +{effectiveGlassPercent}%
               </span>
             </div>
 
@@ -276,11 +490,13 @@ export default function OfferPriceListsPage() {
                   <tr className="border-b border-[#e2e8f0] bg-[#f8fafc] text-[#475569] text-left">
                     <th className="py-2.5 px-4 font-semibold">Zakres szerokości B</th>
                     <th className="py-2.5 px-4 font-semibold text-right">Koszt materiału netto</th>
-                    <th className="py-2.5 px-4 font-semibold text-right">Cena materiału netto (+52%)</th>
+                    <th className="py-2.5 px-4 font-semibold text-right">
+                      Cena materiału netto (+{effectiveGlassPercent}%)
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#eef2f6]">
-                  {DEFAULT_TRIANGLE_PRICING_RANGES.map((range) => (
+                  {triangleRanges.map((range) => (
                     <tr
                       key={`${range.minWidthMm}-${range.maxWidthMm}`}
                       className="hover:bg-[#f8fafc]"
@@ -327,8 +543,8 @@ export default function OfferPriceListsPage() {
                 Koszt materiału dla szkła = koszt bazy poliwęglanu ×{" "}
                 <strong>{ROOF_PRICING_CONFIG.glassMaterialMultiplier}</strong>.
                 Cena sprzedaży materiału dla klienta = koszt materiału ×{" "}
-                <strong>{ROOF_PRICING_CONFIG.materialMarkupMultiplier}</strong>{" "}
-                (+{roofMarkupPct}%).
+                <strong>{effectiveRoofMultiplier.toFixed(2)}</strong> (+
+                {effectiveRoofPercent}%).
               </p>
             </div>
 
@@ -396,7 +612,7 @@ export default function OfferPriceListsPage() {
                         : "text-[#475569] hover:text-[#0b1220]"
                     }`}
                   >
-                    Cena netto (+{roofMarkupPct}%)
+                    Cena netto (+{effectiveRoofPercent}%)
                   </button>
                   <button
                     type="button"
@@ -458,10 +674,7 @@ export default function OfferPriceListsPage() {
                               : basePoly;
                           const val =
                             roofViewMode === "price"
-                              ? Math.round(
-                                  rawCost *
-                                    ROOF_PRICING_CONFIG.materialMarkupMultiplier
-                                )
+                              ? Math.round(rawCost * effectiveRoofMultiplier)
                               : Math.round(rawCost);
                           return (
                             <td

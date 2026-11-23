@@ -231,8 +231,11 @@ export function isGlassSystemConstruction(item: {
  */
 export function calculateGlassSystemPricing(
   widthMm: number,
-  heightMm: number
+  heightMm: number,
+  options?: { materialMarkupMultiplier?: number }
 ) {
+  const markupMultiplier =
+    options?.materialMarkupMultiplier ?? GLASS_PRICING_CONFIG.materialMarkupMultiplier;
   const widthCm = Math.round(widthMm / 10);
   const heightCm = Math.round(heightMm / 10);
 
@@ -260,9 +263,8 @@ export function calculateGlassSystemPricing(
       Math.round((glassCost + moduleInfo.nonStandardProfilesCostNet) * 100) / 100;
   }
 
-  // Cena materiału z narzutem 52%
-  const rawMaterialPrice =
-    materialCostNet * GLASS_PRICING_CONFIG.materialMarkupMultiplier;
+  // Cena materiału z konfigurowalnym narzutem (domyślnie 52% -> 1.52)
+  const rawMaterialPrice = materialCostNet * markupMultiplier;
   const materialPriceNet = Math.round(rawMaterialPrice);
 
   // Montaż rozliczany z metrów bieżących modułu standardowego (standardWidthCm / 100)

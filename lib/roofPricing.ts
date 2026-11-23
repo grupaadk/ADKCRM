@@ -249,8 +249,11 @@ export function getRoofStructureCounts(widthMm: number): {
 export function calculateRoofPricing(
   widthMm: number,
   depthMm: number,
-  coverType: RoofCoverType
+  coverType: RoofCoverType,
+  options?: { materialMarkupMultiplier?: number }
 ) {
+  const markupMultiplier =
+    options?.materialMarkupMultiplier ?? ROOF_PRICING_CONFIG.materialMarkupMultiplier;
   const widthCm = Math.round(widthMm / 10);
   const depthCm = Math.round(depthMm / 10);
 
@@ -261,8 +264,7 @@ export function calculateRoofPricing(
     coverType === "glass"
       ? basePolyCost * ROOF_PRICING_CONFIG.glassMaterialMultiplier
       : basePolyCost;
-  const rawMaterialPrice =
-    rawMaterialCost * ROOF_PRICING_CONFIG.materialMarkupMultiplier;
+  const rawMaterialPrice = rawMaterialCost * markupMultiplier;
 
   const areaM2 = Math.round(((widthMm * depthMm) / 1_000_000) * 100) / 100;
   const { pricePerM2, costPerM2 } = getRoofInstallationRates(areaM2, coverType, check.isStandard);

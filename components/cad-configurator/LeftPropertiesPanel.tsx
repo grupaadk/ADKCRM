@@ -31,7 +31,7 @@ import {
 } from "@/lib/roofPricing";
 import {
   matchPricingRange,
-  DEFAULT_TRIANGLE_PRICING_RANGES,
+  getTrianglePricingRanges,
 } from "@/lib/pricingRanges";
 
 interface LeftPropertiesPanelProps {
@@ -193,11 +193,15 @@ export function LeftPropertiesPanel({
     (item.name.toLowerCase().includes("6") ||
       Boolean(item.shortName && item.shortName.toLowerCase().includes("6")));
 
+  const pricingConfig = useQuery(api.crmConfig.getPricingConfig);
+  const glassMarkupMultiplier = pricingConfig?.glassMaterialMarkupMultiplier;
+  const roofMarkupMultiplier = pricingConfig?.roofMaterialMarkupMultiplier;
+
   const effectivePricingRanges =
     template?.pricingRanges && template.pricingRanges.length > 0
       ? template.pricingRanges
       : isTriangle
-      ? DEFAULT_TRIANGLE_PRICING_RANGES
+      ? getTrianglePricingRanges(glassMarkupMultiplier)
       : null;
 
   const matchedRange = effectivePricingRanges
@@ -243,7 +247,9 @@ export function LeftPropertiesPanel({
 
   const applyDimensionChange = (nextW: number, nextH: number) => {
     if (isRoof) {
-      const calc = calculateRoofPricing(nextW, nextH, roofCoverType);
+      const calc = calculateRoofPricing(nextW, nextH, roofCoverType, {
+        materialMarkupMultiplier: roofMarkupMultiplier,
+      });
       onChange({
         widthMm: nextW,
         heightMm: nextH,
@@ -262,7 +268,9 @@ export function LeftPropertiesPanel({
       return;
     }
     if (isGlass) {
-      const calc = calculateGlassSystemPricing(nextW, nextH);
+      const calc = calculateGlassSystemPricing(nextW, nextH, {
+        materialMarkupMultiplier: glassMarkupMultiplier,
+      });
       onChange({
         widthMm: nextW,
         heightMm: nextH,
@@ -920,8 +928,33 @@ export function LeftPropertiesPanel({
               <button
                 type="button"
                 onClick={() => {
-                  if (isGlass) {
-                    const calc = calculateGlassSystemPricing(item.widthMm || 2880, item.heightMm || 2300);
+                  if (isRoof) {
+                    const calc = calculateRoofPricing(
+                      item.widthMm || 4060,
+                      item.heightMm || 3000,
+                      roofCoverType,
+                      { materialMarkupMultiplier: roofMarkupMultiplier }
+                    );
+                    onChange({
+                      isCustomPricing: false,
+                      panesCount: calc.fieldsCount,
+                      systemName: `ZADASZENIE ${calc.series}`,
+                      materialCostNet: calc.materialCostNet,
+                      materialPriceNet: calc.materialPriceNet,
+                      installationCostNet: calc.installationCostNet,
+                      installationPriceNet: calc.installationPriceNet,
+                      priceNet: calc.priceNet,
+                      costNet: calc.costNet,
+                      isStandard: calc.isStandard,
+                      pricingTier: calc.pricingTier,
+                      standardWidthCm: calc.standardWidthCm,
+                    });
+                  } else if (isGlass) {
+                    const calc = calculateGlassSystemPricing(
+                      item.widthMm || 2880,
+                      item.heightMm || 2300,
+                      { materialMarkupMultiplier: glassMarkupMultiplier }
+                    );
                     onChange({
                       isCustomPricing: false,
                       materialCostNet: calc.materialCostNet,
@@ -1228,7 +1261,8 @@ export function LeftPropertiesPanel({
               onClick={() => {
                 const calc = calculateGlassSystemPricing(
                   item.widthMm || 2880,
-                  item.heightMm || 2300
+                  item.heightMm || 2300,
+                  { materialMarkupMultiplier: glassMarkupMultiplier }
                 );
                 onChange({
                   materialCostNet: calc.materialCostNet,

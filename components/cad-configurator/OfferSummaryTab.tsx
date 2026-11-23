@@ -745,6 +745,8 @@ export function OfferSummaryTab({
   const removeOfferAddition = useMutation(api.offers.removeOfferAddition);
   const convertAdditionToConstruction = useMutation(api.offers.convertAdditionToConstruction);
   const catalogTemplates = useQuery(api.offerAdditionTemplates.list, { activeOnly: true });
+  const pricingConfig = useQuery(api.crmConfig.getPricingConfig);
+  const glassMarkupMultiplier = pricingConfig?.glassMaterialMarkupMultiplier;
   const seedDefaultTemplates = useMutation(api.offerAdditionTemplates.seedDefaultsIfEmpty);
 
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
@@ -869,7 +871,9 @@ export function OfferSummaryTab({
   const totalMaterialPrice = items.reduce((acc, it) => {
     const q = it.quantity || 1;
     if (isGlassSystemConstruction(it) && it.widthMm && it.heightMm) {
-      const calc = calculateGlassSystemPricing(it.widthMm, it.heightMm);
+      const calc = calculateGlassSystemPricing(it.widthMm, it.heightMm, {
+        materialMarkupMultiplier: glassMarkupMultiplier,
+      });
       if (!calc.isStandard && (it.materialPriceNet === 8626 || it.priceNet === 10213)) {
         return acc + calc.materialPriceNet * q;
       }
@@ -1246,7 +1250,9 @@ export function OfferSummaryTab({
                       ? it.materialPriceNet
                       : Math.max(0, (it.priceNet || 0) - instPrice);
                   if (isGlassSystemConstruction(it) && it.widthMm && it.heightMm) {
-                    const calc = calculateGlassSystemPricing(it.widthMm, it.heightMm);
+                    const calc = calculateGlassSystemPricing(it.widthMm, it.heightMm, {
+                      materialMarkupMultiplier: glassMarkupMultiplier,
+                    });
                     if (!calc.isStandard && (matUnitPrice === 8626 || it.priceNet === 10213)) {
                       matUnitPrice = calc.materialPriceNet;
                     }

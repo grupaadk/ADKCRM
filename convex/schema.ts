@@ -758,6 +758,12 @@ export default defineSchema({
         }),
       })
     ),
+    pricingConfig: v.optional(
+      v.object({
+        glassMaterialMarkupPercent: v.number(),
+        roofMaterialMarkupPercent: v.number(),
+      })
+    ),
   }),
 
   // 3.16 Cache faktur z Fakturowni

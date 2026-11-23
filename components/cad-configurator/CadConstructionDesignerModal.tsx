@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import { CadCanvas, CadConstructionItem } from "./CadCanvas";
 import {
@@ -94,6 +96,7 @@ export function CadConstructionDesignerModal({
   initialData,
   categories,
 }: CadConstructionDesignerModalProps) {
+  const pricingConfig = useQuery(api.crmConfig.getPricingConfig);
   const isEditing = Boolean(initialData?._id);
 
   // Aktywna zakładka panelu bocznego (Parametry CAD vs Cennik i marża)
@@ -1191,13 +1194,15 @@ export function CadConstructionDesignerModal({
                 <button
                   type="button"
                   onClick={() => {
-                    const calc = calculateGlassSystemPricing(widthMm, heightMm);
+                    const calc = calculateGlassSystemPricing(widthMm, heightMm, {
+                      materialMarkupMultiplier: pricingConfig?.glassMaterialMarkupMultiplier,
+                    });
                     const baseMatCost = calc.materialCostNet - calc.brushesCostNet - calc.handlesCostNet;
                     setMaterialCostNet(baseMatCost > 0 ? baseMatCost : calc.materialCostNet);
                     setBrushesCostNet(calc.brushesCostNet);
                     setHandlesCostNet(calc.handlesCostNet);
                     setMaterialMarkupType("percent");
-                    setMaterialMarkupValue(52);
+                    setMaterialMarkupValue(pricingConfig?.glassMaterialMarkupPercent ?? 52);
                     setInstallationUnit("mb");
                     setInstallationUnitRate(250);
                     setInstallationMarkupType("percent");

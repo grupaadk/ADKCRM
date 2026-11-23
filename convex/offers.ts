@@ -1,18 +1,39 @@
-import { mutation, internalMutation, query, MutationCtx } from "./_generated/server";
+import { mutation, internalMutation, query, MutationCtx, QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { Id, Doc } from "./_generated/dataModel";
 import {
   calculateGlassSystemPricing,
   checkIsStandard,
+  GLASS_PRICING_CONFIG,
   isGlassSystemConstruction,
 } from "../lib/glassPricing";
 import {
   calculateRoofPricing,
   getRoofCoverType,
   isRoofConstruction,
+  ROOF_PRICING_CONFIG,
 } from "../lib/roofPricing";
 import { matchPricingRange } from "../lib/pricingRanges";
 import { getCurrentUser } from "./lib/auth";
+
+async function getPricingMultipliers(ctx: QueryCtx | MutationCtx): Promise<{
+  glassMarkupMultiplier: number;
+  roofMarkupMultiplier: number;
+}> {
+  const config = await ctx.db.query("crmConfig").first();
+  const glassPercent = config?.pricingConfig?.glassMaterialMarkupPercent;
+  const roofPercent = config?.pricingConfig?.roofMaterialMarkupPercent;
+  return {
+    glassMarkupMultiplier:
+      glassPercent !== undefined
+        ? 1 + glassPercent / 100
+        : GLASS_PRICING_CONFIG.materialMarkupMultiplier,
+    roofMarkupMultiplier:
+      roofPercent !== undefined
+        ? 1 + roofPercent / 100
+        : ROOF_PRICING_CONFIG.materialMarkupMultiplier,
+  };
+}
 
 /**
  * Usuwa słowo "Przedstawiciel" z tytułów ofert i nazw klientów w całym systemie
@@ -77,6 +98,8 @@ export const getOfferWithItems = query({
 
     rawItems.sort((a, b) => a.positionIndex - b.positionIndex);
 
+    const { glassMarkupMultiplier } = await getPricingMultipliers(ctx);
+
     let allConstructionsCache: Doc<"constructions">[] | null = null;
 
     // Wzbogacamy pozycje o cennik z szablonu, jeśli nie mają jeszcze własnych filarów cenowych
@@ -138,7 +161,9 @@ export const getOfferWithItems = query({
             (tpl && Boolean(tpl.defaultWidthMm) && tpl.defaultWidthMm !== item.widthMm));
 
         if (isGlassStale) {
-          const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm);
+          const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm, {
+            materialMarkupMultiplier: glassMarkupMultiplier,
+          });
           return {
             ...item,
             panesCount: effectivePanesCount,
@@ -221,7 +246,9 @@ export const getOfferWithItems = query({
             instPrice = tpl.installationPriceNet ?? 0;
 
             if (isGlass && (instPrice === 1373 || instPrice === 3093)) {
-              const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm);
+              const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm, {
+                materialMarkupMultiplier: glassMarkupMultiplier,
+              });
               instCost = calc.installationCostNet;
               instPrice = calc.installationPriceNet;
             }
@@ -235,7 +262,9 @@ export const getOfferWithItems = query({
                 ? (tpl.materialCostNet || 0) + (tpl.installationCostNet || 0)
                 : item.costNet;
           } else if (isGlass) {
-            const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm);
+            const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm, {
+              materialMarkupMultiplier: glassMarkupMultiplier,
+            });
             matCost = calc.materialCostNet;
             matPrice = calc.materialPriceNet;
             instCost = calc.installationCostNet;
@@ -790,6 +819,7 @@ export const addConstructionPosition = mutation({
       args.heightMm ||
       construction?.defaultHeightMm ||
       (isTriangle ? 600 : isPergola || isRoof ? 3000 : 2300);
+    const { roofMarkupMultiplier } = await getPricingMultipliers(ctx);
     const roofCalc = isRoof
       ? calculateRoofPricing(
           width,
@@ -798,7 +828,8 @@ export const addConstructionPosition = mutation({
             name: args.name || construction?.name,
             fillType: args.fillType || construction?.defaultFillType,
             code: construction?.code,
-          })
+          }),
+          { materialMarkupMultiplier: roofMarkupMultiplier }
         )
       : null;
     const panes =
@@ -1043,12 +1074,15 @@ export const updateConstructionPosition = mutation({
     });
 
     if (isRoof && (fields.widthMm !== undefined || fields.heightMm !== undefined)) {
+      const { roofMarkupMultiplier } = await getPricingMultipliers(ctx);
       const coverType = getRoofCoverType({
         name: (fields.name as string) ?? item.name,
         shortName: (fields.shortName as string) ?? item.shortName,
         fillType: (fields.fillType as string) ?? item.fillType,
       });
-      const calc = calculateRoofPricing(newWidth, newHeight, coverType);
+      const calc = calculateRoofPricing(newWidth, newHeight, coverType, {
+        materialMarkupMultiplier: roofMarkupMultiplier,
+      });
       patch.isStandard = fields.isStandard ?? calc.isStandard;
       patch.pricingTier = fields.pricingTier ?? calc.pricingTier;
       patch.standardWidthCm = fields.standardWidthCm ?? calc.standardWidthCm;
@@ -1068,7 +1102,10 @@ export const updateConstructionPosition = mutation({
         patch.costNet = calc.costNet;
       }
     } else if (isGlass && (fields.widthMm !== undefined || fields.heightMm !== undefined)) {
-      const calc = calculateGlassSystemPricing(newWidth, newHeight);
+      const { glassMarkupMultiplier } = await getPricingMultipliers(ctx);
+      const calc = calculateGlassSystemPricing(newWidth, newHeight, {
+        materialMarkupMultiplier: glassMarkupMultiplier,
+      });
       patch.isStandard = fields.isStandard ?? calc.isStandard;
       patch.pricingTier = fields.pricingTier ?? calc.pricingTier;
       patch.standardWidthCm = fields.standardWidthCm ?? calc.standardWidthCm;
@@ -1583,7 +1620,10 @@ export const syncOfferWithConstructionTemplates = mutation({
         let instPrice = tpl.installationPriceNet ?? 0;
 
         if (isGlass && (instPrice === 1373 || instPrice === 3093)) {
-          const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm);
+          const { glassMarkupMultiplier } = await getPricingMultipliers(ctx);
+          const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm, {
+            materialMarkupMultiplier: glassMarkupMultiplier,
+          });
           instCost = calc.installationCostNet;
           instPrice = calc.installationPriceNet;
         }
@@ -1611,7 +1651,10 @@ export const syncOfferWithConstructionTemplates = mutation({
         });
         updatedCount++;
       } else if (isGlass) {
-        const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm);
+        const { glassMarkupMultiplier } = await getPricingMultipliers(ctx);
+        const calc = calculateGlassSystemPricing(item.widthMm, item.heightMm, {
+          materialMarkupMultiplier: glassMarkupMultiplier,
+        });
         await ctx.db.patch(item._id, {
           constructionId: tpl?._id ?? item.constructionId,
           isStandard: calc.isStandard,
@@ -1660,6 +1703,8 @@ async function recalculateOffer(ctx: MutationCtx, offerId: Id<"offers">) {
     .withIndex("by_offer", (q) => q.eq("offerId", offerId))
     .collect();
 
+  const { glassMarkupMultiplier } = await getPricingMultipliers(ctx);
+
   let totalCost = 0;
   let materialNet = 0;
   let installationNet = 0;
@@ -1695,7 +1740,9 @@ async function recalculateOffer(ctx: MutationCtx, offerId: Id<"offers">) {
         matPrice === undefined);
 
     if (isGlassNeedsRecalc) {
-      const calc = calculateGlassSystemPricing(it.widthMm, it.heightMm);
+      const calc = calculateGlassSystemPricing(it.widthMm, it.heightMm, {
+        materialMarkupMultiplier: glassMarkupMultiplier,
+      });
       instPrice = calc.installationPriceNet;
       cost = calc.costNet;
       price = calc.priceNet;

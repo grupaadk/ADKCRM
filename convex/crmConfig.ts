@@ -6,6 +6,9 @@ import {
   resolveStatuses,
   type StatusDef,
 } from "../lib/statuses";
+import { GLASS_PRICING_CONFIG } from "../lib/glassPricing";
+import { ROOF_PRICING_CONFIG } from "../lib/roofPricing";
+import { getTrianglePricingRanges } from "../lib/pricingRanges";
 
 // Walidator pojedynczego wpisu rejestru (zgodny ze schema crmConfig.statuses).
 const statusDefValidator = v.object({
@@ -252,5 +255,113 @@ export const saveGoogleDriveFoldersConfig = mutation({
         googleDriveFolders: args.googleDriveFolders,
       });
     }
+  },
+});
+
+const DEFAULT_GLASS_MARKUP_PERCENT = Math.round(
+  (GLASS_PRICING_CONFIG.materialMarkupMultiplier - 1) * 100
+);
+const DEFAULT_ROOF_MARKUP_PERCENT = Math.round(
+  (ROOF_PRICING_CONFIG.materialMarkupMultiplier - 1) * 100
+);
+
+/**
+ * Zwraca aktywną konfigurację narzutu na materiał (osobno dla zabudowy szklanej/trójkątów
+ * oraz zadaszeń aluminiowych). Gdy nie zapisano w bazie, zwraca domyślne 52% (1.52).
+ */
+export const getPricingConfig = query({
+  args: {},
+  handler: async (ctx) => {
+    const config = await ctx.db.query("crmConfig").first();
+    const glassPercent =
+      config?.pricingConfig?.glassMaterialMarkupPercent ??
+      DEFAULT_GLASS_MARKUP_PERCENT;
+    const roofPercent =
+      config?.pricingConfig?.roofMaterialMarkupPercent ??
+      DEFAULT_ROOF_MARKUP_PERCENT;
+
+    return {
+      glassMaterialMarkupPercent: glassPercent,
+      roofMaterialMarkupPercent: roofPercent,
+      glassMaterialMarkupMultiplier: 1 + glassPercent / 100,
+      roofMaterialMarkupMultiplier: 1 + roofPercent / 100,
+    };
+  },
+});
+
+/**
+ * Zapisuje procentowy narzut na materiał dla zabudowy szklanej/trójkątów oraz zadaszeń.
+ * Tylko admin. Synchronizuje też progi cenowe szablonów trójkątów w tabeli constructions.
+ */
+export const savePricingConfig = mutation({
+  args: {
+    glassMaterialMarkupPercent: v.number(),
+    roofMaterialMarkupPercent: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, "admin");
+
+    if (
+      !Number.isFinite(args.glassMaterialMarkupPercent) ||
+      args.glassMaterialMarkupPercent < 0 ||
+      args.glassMaterialMarkupPercent > 500
+    ) {
+      throw new ConvexError(
+        "Narzut na materiał dla zabudowy musi być liczbą z zakresu 0–500%"
+      );
+    }
+    if (
+      !Number.isFinite(args.roofMaterialMarkupPercent) ||
+      args.roofMaterialMarkupPercent < 0 ||
+      args.roofMaterialMarkupPercent > 500
+    ) {
+      throw new ConvexError(
+        "Narzut na materiał dla zadaszeń musi być liczbą z zakresu 0–500%"
+      );
+    }
+
+    const glassPercent = Math.round(args.glassMaterialMarkupPercent * 100) / 100;
+    const roofPercent = Math.round(args.roofMaterialMarkupPercent * 100) / 100;
+    const pricingConfig = {
+      glassMaterialMarkupPercent: glassPercent,
+      roofMaterialMarkupPercent: roofPercent,
+    };
+
+    const existing = await ctx.db.query("crmConfig").first();
+    if (existing) {
+      await ctx.db.patch(existing._id, { pricingConfig });
+    } else {
+      await ctx.db.insert("crmConfig", { pricingConfig });
+    }
+
+    // Zsynchronizuj szablony trójkątów (LEWY / PRAWY) z nowym narzutem zabudowy
+    const glassMultiplier = 1 + glassPercent / 100;
+    const updatedTriangleRanges = getTrianglePricingRanges(glassMultiplier);
+    const allConstructions = await ctx.db.query("constructions").collect();
+    const now = Date.now();
+    for (const c of allConstructions) {
+      if (c.code === "TROJKAT-TARAS-L" || c.code === "TROJKAT-TARAS-P") {
+        const baseMatCost = c.materialCostNet ?? 854;
+        const nextMatPrice = Math.round(baseMatCost * glassMultiplier);
+        const instPrice =
+          c.installationPriceNet ??
+          Math.round(((c.defaultWidthMm || 3000) / 1000) * 250);
+        await ctx.db.patch(c._id, {
+          materialMarkupType: "percent",
+          materialMarkupValue: glassPercent,
+          materialPriceNet: nextMatPrice,
+          defaultPriceNet: nextMatPrice + instPrice,
+          pricingRanges: updatedTriangleRanges,
+          updatedAt: now,
+        });
+      }
+    }
+
+    return {
+      glassMaterialMarkupPercent: glassPercent,
+      roofMaterialMarkupPercent: roofPercent,
+      glassMaterialMarkupMultiplier: glassMultiplier,
+      roofMaterialMarkupMultiplier: 1 + roofPercent / 100,
+    };
   },
 });
