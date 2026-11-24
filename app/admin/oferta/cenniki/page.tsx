@@ -10,8 +10,6 @@ import {
   Layers,
   Umbrella,
   Info,
-  Wrench,
-  Ruler,
   Percent,
   Save,
   RotateCcw,
@@ -335,54 +333,6 @@ export default function OfferPriceListsPage() {
 
       {activeTab === "zabudowa" ? (
         <div className="space-y-5">
-          {/* Summary cards for Glass System */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="panel p-4 space-y-1.5">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#0e7490]">
-                <Ruler size={14} />
-                <span>Kryterium STANDARD (ścianki)</span>
-              </div>
-              <p className="text-xs text-[#475569] leading-relaxed">
-                Szerokość dokładnie jedna z 10 wartości modułowych (
-                <strong>94–578 cm</strong>) oraz wysokość w przedziale{" "}
-                <strong>200–250 cm</strong> ze skokiem co <strong>5 cm</strong>.
-              </p>
-            </div>
-
-            <div className="panel p-4 space-y-1.5">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#0e7490]">
-                <Percent size={14} />
-                <span>Materiał i niestandard</span>
-              </div>
-              <p className="text-xs text-[#475569] leading-relaxed">
-                Narzut na materiał: <strong>+{effectiveGlassPercent}%</strong> (×
-                {effectiveGlassMultiplier.toFixed(2)}). Dla wymiaru{" "}
-                <strong>NIESTANDARD</strong>: szkło{" "}
-                <strong>
-                  {GLASS_PRICING_CONFIG.glassPurchasePricePerM2} zł/m²
-                </strong>{" "}
-                + koszt profili bez szkła najbliższego wyższego modułu.
-              </p>
-            </div>
-
-            <div className="panel p-4 space-y-1.5">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#0e7490]">
-                <Wrench size={14} />
-                <span>Montaż (ścianki przesuwne)</span>
-              </div>
-              <p className="text-xs text-[#475569] leading-relaxed">
-                Rozliczany od szerokości <strong>modułu standardowego</strong>{" "}
-                (w mb): koszt ekipy{" "}
-                <strong>{GLASS_PRICING_CONFIG.installationCostPerMb} zł/mb</strong>
-                , cena dla klienta{" "}
-                <strong>
-                  {GLASS_PRICING_CONFIG.installationPricePerMb} zł/mb
-                </strong>
-                .
-              </p>
-            </div>
-          </div>
-
           {/* Glass modules table */}
           <div className="panel overflow-hidden">
             <div className="px-4 py-3 border-b border-[#e2e8f0] bg-[#f8fafc] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -519,49 +469,6 @@ export default function OfferPriceListsPage() {
         </div>
       ) : (
         <div className="space-y-5">
-          {/* Summary cards for Roofs */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="panel p-4 space-y-1.5">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#0e7490]">
-                <Ruler size={14} />
-                <span>STANDARD vs NIESTANDARD</span>
-              </div>
-              <p className="text-xs text-[#475569] leading-relaxed">
-                Standard to dokładne trafienie w siatkę szerokości (
-                <strong>306–1206 cm</strong>) i głębokości (
-                <strong>300–600 cm</strong>). Wymiar niestandardowy zaokrąglany
-                jest w górę do najbliższego rozmiaru katalogowego.
-              </p>
-            </div>
-
-            <div className="panel p-4 space-y-1.5">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#0e7490]">
-                <Percent size={14} />
-                <span>Poliwęglan vs Szkło i narzut</span>
-              </div>
-              <p className="text-xs text-[#475569] leading-relaxed">
-                Koszt materiału dla szkła = koszt bazy poliwęglanu ×{" "}
-                <strong>{ROOF_PRICING_CONFIG.glassMaterialMultiplier}</strong>.
-                Cena sprzedaży materiału dla klienta = koszt materiału ×{" "}
-                <strong>{effectiveRoofMultiplier.toFixed(2)}</strong> (+
-                {effectiveRoofPercent}%).
-              </p>
-            </div>
-
-            <div className="panel p-4 space-y-1.5">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#0e7490]">
-                <Wrench size={14} />
-                <span>Serie i montaż w m²</span>
-              </div>
-              <p className="text-xs text-[#475569] leading-relaxed">
-                Głębokość <strong>300–400 cm</strong> → seria{" "}
-                <strong>STANDARD</strong>; głębokość{" "}
-                <strong>450–600 cm</strong> → seria <strong>PRO+</strong>.
-                Montaż liczony od rzeczywistej powierzchni (m²) wg progów poniżej.
-              </p>
-            </div>
-          </div>
-
           {/* Roof Catalog Matrix */}
           <div className="panel overflow-hidden">
             <div className="px-4 py-3 border-b border-[#e2e8f0] bg-[#f8fafc] flex flex-col lg:flex-row lg:items-center justify-between gap-3">
