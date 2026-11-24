@@ -968,8 +968,10 @@ export default function ScheduleGantt({
     const isDone = stageIdx < currentStageIdx;
     const isCurrent = stageIdx === currentStageIdx;
     const barBackground =
-      stage.key === "installation" && order.installationTeamColor
-        ? order.installationTeamColor
+      stage.key === "installation"
+        ? order.installationTeamId
+          ? (order.installationTeamColor ?? stage.color)
+          : "#64748b"
         : stage.color;
 
     const progress = order.stageProgress?.[stage.key];
@@ -2073,9 +2075,10 @@ export default function ScheduleGantt({
                                 ghostDays * dayWidth,
                               );
                               const ghostColor =
-                                placingStage.stageKey === "installation" &&
-                                order.installationTeamColor
-                                  ? order.installationTeamColor
+                                placingStage.stageKey === "installation"
+                                  ? order.installationTeamId
+                                    ? (order.installationTeamColor ?? ghostStage.color)
+                                    : "#64748b"
                                   : ghostStage.color;
                               const ghostEndTs = addDays(
                                 placingStage.hoverDayTs,
@@ -2592,9 +2595,11 @@ export default function ScheduleGantt({
             className="w-2.5 h-2.5 rounded-full shrink-0"
             style={{
               background:
-                placingStage.stageKey === "installation" &&
-                placingStage.order.installationTeamColor
-                  ? placingStage.order.installationTeamColor
+                placingStage.stageKey === "installation"
+                  ? placingStage.order.installationTeamId
+                    ? (placingStage.order.installationTeamColor ??
+                      STAGE_BY_KEY.installation.color)
+                    : "#64748b"
                   : STAGE_BY_KEY[placingStage.stageKey].color,
             }}
           />
