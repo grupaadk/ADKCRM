@@ -274,21 +274,28 @@ export function CadCanvas({
       })
     : "polycarbonate";
 
-  // Obliczenia wymiarów kwater
-  const paneWidth = Math.round(width / panes);
+  // Obliczenia wymiarów kwater (dla drzwi dwuskrzydłowych zawsze min. 2 skrzydła: 65% / 35%)
+  const effectivePanes = isDoubleDoor ? Math.max(2, panes) : panes;
+  const paneWidth = Math.round(width / effectivePanes);
   const segments: CadSegment[] =
     item.segments &&
-    item.segments.length === panes &&
+    item.segments.length === effectivePanes &&
     effectiveWidthMm === item.widthMm &&
     effectiveHeightMm === item.heightMm
       ? item.segments
-      : Array.from({ length: panes }).map((_, i) => ({
+      : Array.from({ length: effectivePanes }).map((_, i) => ({
           widthMm:
-            i === panes - 1 ? width - paneWidth * (panes - 1) : paneWidth,
+            isDoubleDoor && effectivePanes === 2
+              ? i === 0
+                ? Math.round(width * 0.65)
+                : width - Math.round(width * 0.65)
+              : i === effectivePanes - 1
+              ? width - paneWidth * (effectivePanes - 1)
+              : paneWidth,
           heightMm: height - 103,
           fill,
           weightKg:
-            Math.round((width / panes) * height * 0.000001 * 25 * 10) / 10,
+            Math.round((width / effectivePanes) * height * 0.000001 * 25 * 10) / 10,
           profileTop: `5448 ${color}`,
           profileBottom: `5450 ${color}`,
           profileLeft: `5450 ${color}`,
@@ -1154,7 +1161,7 @@ export function CadCanvas({
                     const openingH = height - frameThickness * 2;
                     // Dla drzwi dwuskrzydłowych: asymetryczny podział jak na szkicu (lewe skrzydło czynne ~65%, prawe bierne ~35%)
                     const segWidths = (() => {
-                      if (isDoubleDoor && panes === 2) {
+                      if (isDoubleDoor && effectivePanes === 2) {
                         const s0 = segments[0]?.widthMm || 0;
                         const s1 = segments[1]?.widthMm || 0;
                         if (s0 > 0 && s1 > 0 && Math.abs(s0 - s1) > 10) {
@@ -1163,9 +1170,9 @@ export function CadCanvas({
                         }
                         return [openingW * 0.65, openingW * 0.35];
                       }
-                      return Array.from({ length: panes }, () => openingW / panes);
+                      return Array.from({ length: effectivePanes }, () => openingW / effectivePanes);
                     })();
-                    const segW = segWidths[idx] ?? openingW / panes;
+                    const segW = segWidths[idx] ?? openingW / effectivePanes;
                     const segOffsetX = segWidths.slice(0, idx).reduce((acc, w) => acc + w, 0);
                     const segX = originX + frameThickness + segOffsetX;
                     const segY = originY + frameThickness;

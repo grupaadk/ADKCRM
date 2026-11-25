@@ -1771,23 +1771,28 @@ export function AllConstructionsCadView({
                                   !isTriangle &&
                                   !isFixedWindow &&
                                   (/drzwi/i.test(item.name || "") || /drzwi/i.test(item.systemName || ""));
+                                const effectivePanes = isDoubleDoor ? Math.max(2, panes) : panes;
+                                const effectiveSegments =
+                                  segments.length >= effectivePanes
+                                    ? segments.slice(0, effectivePanes)
+                                    : Array.from({ length: effectivePanes }, (_, i) => segments[i] ?? segments[0]);
                                 const openingW = width - frameThickness * 2;
                                 const openingH = height - frameThickness * 2;
                                 const segWidths =
-                                  isDoubleDoor && panes === 2
+                                  isDoubleDoor && effectivePanes === 2
                                     ? (() => {
-                                        const s0 = segments[0]?.widthMm || 0;
-                                        const s1 = segments[1]?.widthMm || 0;
+                                        const s0 = effectiveSegments[0]?.widthMm || 0;
+                                        const s1 = effectiveSegments[1]?.widthMm || 0;
                                         if (s0 > 0 && s1 > 0 && Math.abs(s0 - s1) > 10) {
                                           const totalS = s0 + s1;
                                           return [openingW * (s0 / totalS), openingW * (s1 / totalS)];
                                         }
                                         return [openingW * 0.65, openingW * 0.35];
                                       })()
-                                    : Array.from({ length: panes }, () => openingW / panes);
+                                    : Array.from({ length: effectivePanes }, () => openingW / effectivePanes);
 
-                                return segments.map((seg, idx) => {
-                                  const segW = segWidths[idx] ?? openingW / panes;
+                                return effectiveSegments.map((seg, idx) => {
+                                  const segW = segWidths[idx] ?? openingW / effectivePanes;
                                   const segOffsetX = segWidths.slice(0, idx).reduce((acc, w) => acc + w, 0);
                                   const segX = originX + frameThickness + segOffsetX;
                                   const segY = originY + frameThickness;

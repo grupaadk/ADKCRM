@@ -308,10 +308,11 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
       ${postsSvg}
     `;
   } else {
+    const effectivePanes = isDoubleDoor ? Math.max(2, panes) : panes;
     const openingW = width - frameThickness * 2;
     const openingH = height - frameThickness * 2;
     const segWidths = (() => {
-      if (isDoubleDoor && panes === 2) {
+      if (isDoubleDoor && effectivePanes === 2) {
         const s0 = item.segments?.[0]?.widthMm || 0;
         const s1 = item.segments?.[1]?.widthMm || 0;
         if (s0 > 0 && s1 > 0 && Math.abs(s0 - s1) > 10) {
@@ -320,13 +321,13 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
         }
         return [openingW * 0.65, openingW * 0.35];
       }
-      return Array.from({ length: panes }, () => openingW / panes);
+      return Array.from({ length: effectivePanes }, () => openingW / effectivePanes);
     })();
 
     let panesSvg = "";
     let runningX = originX + frameThickness;
-    for (let idx = 0; idx < panes; idx++) {
-      const segW = segWidths[idx] ?? openingW / panes;
+    for (let idx = 0; idx < effectivePanes; idx++) {
+      const segW = segWidths[idx] ?? openingW / effectivePanes;
       const segX = runningX;
       runningX += segW;
       const segY = originY + frameThickness;
