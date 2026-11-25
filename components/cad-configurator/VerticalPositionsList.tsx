@@ -235,7 +235,7 @@ export function VerticalPositionsList({
                         <rect x="3" y="50" width="9" height="9" fill="#0f172a" stroke="#4ABBC3" strokeWidth="0.8" />
                         <rect x="108" y="50" width="9" height="9" fill="#0f172a" stroke="#4ABBC3" strokeWidth="0.8" />
                       </g>
-                    ) : !isTriangle && !isPergola && !isRoof && (/drzwi/i.test(item.name || "") || /drzwi/i.test(item.systemName || "")) ? (
+                    ) : !isTriangle && !isPergola && !isRoof && (/drzwi/i.test(it.name || "") || /drzwi/i.test(it.systemName || "")) ? (
                       <g>
                         <rect x="2" y="2" width="116" height="58" fill="none" stroke="#dc2626" strokeWidth="0.8" />
                         <rect x="3" y="3" width="114" height="56" fill="#29323d" stroke="#1e242b" strokeWidth="0.8" />
@@ -245,7 +245,7 @@ export function VerticalPositionsList({
                         <rect x="70.5" y="26.5" width="2" height="9" rx="0.8" fill="#0f172a" />
                         <polyline points="112,8 78.5,31 112,54" fill="none" stroke="#0f172a" strokeWidth="1.5" />
                       </g>
-                    ) : !isTriangle && !isPergola && !isRoof && (/\bfix\b/i.test(item.name || "") || /\bfix\b/i.test(item.systemName || "")) ? (
+                    ) : !isTriangle && !isPergola && !isRoof && (/\bfix\b/i.test(it.name || "") || /\bfix\b/i.test(it.systemName || "")) ? (
                       <g>
                         <rect x="2" y="2" width="116" height="58" fill="none" stroke="#dc2626" strokeWidth="0.8" />
                         <rect x="3" y="3" width="114" height="56" fill="#29323d" stroke="#1e242b" strokeWidth="0.8" />
