@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { CadConstructionItem } from "./CadCanvas";
+import ModalPortal from "@/components/ModalPortal";
 import {
   Settings2,
   DollarSign,
@@ -14,6 +15,8 @@ import {
   Calculator,
   ChevronDown,
   Pencil,
+  Maximize2,
+  X,
 } from "lucide-react";
 import {
   isGlassSystemConstruction,
@@ -71,6 +74,8 @@ export function LeftPropertiesPanel({
   const [colorInput, setColorInput] = React.useState<string>(item.color || "");
   const [fillTypeInput, setFillTypeInput] = React.useState<string>(item.fillType || "");
   const [descriptionInput, setDescriptionInput] = React.useState<string>(item.description || "");
+  const [isDescModalOpen, setIsDescModalOpen] = React.useState(false);
+  const [descModalDraft, setDescModalDraft] = React.useState<string>("");
   const [focusedField, setFocusedField] = React.useState<string | null>(null);
   const [openRoofDropdown, setOpenRoofDropdown] = React.useState<"width" | "height" | null>(null);
   const roofDimContainerRef = React.useRef<HTMLDivElement | null>(null);
@@ -948,9 +953,23 @@ export function LeftPropertiesPanel({
 
         {/* Opis / Skrót */}
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#7c8597] mb-1">
-            Opis techniczny
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#7c8597]">
+              Opis techniczny
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setDescModalDraft(descriptionInput);
+                setIsDescModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-[#0e7490] bg-[rgba(74,187,195,0.12)] hover:bg-[rgba(74,187,195,0.22)] transition-colors cursor-pointer"
+              title="Otwórz opis techniczny w dużym oknie"
+            >
+              <Maximize2 size={10} />
+              <span>{readOnly ? "Podgląd" : "Edytuj w oknie"}</span>
+            </button>
+          </div>
           <textarea
             rows={5}
             disabled={readOnly}
@@ -971,6 +990,89 @@ export function LeftPropertiesPanel({
             placeholder="np. Przesuwna zabudowa tarasowa"
           />
         </div>
+
+        {isDescModalOpen && (
+          <ModalPortal>
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b1220]/45 backdrop-blur-2xs p-4"
+              onClick={() => setIsDescModalOpen(false)}
+            >
+              <div
+                className="bg-white rounded-xl shadow-2xl border border-[#e3e7ee] w-full max-w-2xl overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-5 py-3.5 border-b border-[#e3e7ee] bg-[#f8fafc] flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-[#0b1220]">
+                      Opis techniczny — {item.name}
+                    </h3>
+                    <p className="text-[11px] text-[#64748b] mt-0.5">
+                      Treść opisu trafia na podsumowanie oferty oraz do generowanego PDF.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsDescModalOpen(false)}
+                    className="p-1.5 rounded-md text-[#64748b] hover:text-[#0b1220] hover:bg-[#e2e8f0]/60 transition-colors cursor-pointer"
+                    title="Zamknij"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="p-5">
+                  <textarea
+                    rows={14}
+                    autoFocus
+                    disabled={readOnly}
+                    value={descModalDraft}
+                    onChange={(e) => setDescModalDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        setIsDescModalOpen(false);
+                      } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !readOnly) {
+                        setDescriptionInput(descModalDraft);
+                        onChange({ description: descModalDraft });
+                        setIsDescModalOpen(false);
+                      }
+                    }}
+                    placeholder="Wpisz pełny opis techniczny konstrukcji (kolor profili, okucia, wypełnienie, uwagi montażowe)..."
+                    className="w-full min-h-[300px] bg-white border border-[#cbd5e1] rounded-lg px-3.5 py-3 text-sm text-[#0b1220] leading-relaxed focus:border-[#4ABBC3] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none resize-y"
+                  />
+                </div>
+
+                <div className="px-5 py-3 border-t border-[#e3e7ee] bg-[#f8fafc] flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-[#94a3b8]">
+                    {!readOnly ? "Skrót: Cmd/Ctrl + Enter aby zapisać" : "Tryb podglądu"}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsDescModalOpen(false)}
+                      className="px-3.5 py-1.5 rounded-md text-xs font-semibold text-[#475569] bg-white border border-[#cbd5e1] hover:bg-[#f1f5f9] transition-colors cursor-pointer"
+                    >
+                      {readOnly ? "Zamknij" : "Anuluj"}
+                    </button>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDescriptionInput(descModalDraft);
+                          onChange({ description: descModalDraft });
+                          setIsDescModalOpen(false);
+                        }}
+                        className="px-4 py-1.5 rounded-md text-xs font-semibold bg-[#4ABBC3] hover:bg-[#35a3ab] text-white inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                      >
+                        <Check size={13} />
+                        <span>Zapisz opis</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ModalPortal>
+        )}
 
         {/* Sekcja: Finanse pozycji */}
         <div className="bg-[#f8fafc] p-3 rounded-lg border border-[#e3e7ee] space-y-3">
