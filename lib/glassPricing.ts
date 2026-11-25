@@ -205,14 +205,16 @@ export function isGlassSystemConstruction(item: {
   fillType?: string;
 }): boolean {
   const text = `${item.name || ""} ${item.shortName || ""} ${item.systemName || ""} ${item.fillType || ""}`.toLowerCase();
-  // Trójkąty tarasowe, pergole i zadaszenia mają własne kalkulatory i nie są ścianami przesuwnymi
+  // Trójkąty tarasowe, pergole, zadaszenia, stałe przeszklenia (Okno FIX) i drzwi nie są ścianami przesuwnymi
   if (
     text.includes("trójką") ||
     text.includes("trojkat") ||
     text.includes("zadaszen") ||
     text.includes("zad-") ||
     text.includes("pergol") ||
-    text.includes("lamel")
+    text.includes("lamel") ||
+    text.includes("drzwi") ||
+    /\bfix\b/.test(text)
   ) {
     return false;
   }

@@ -255,6 +255,17 @@ export function CadCanvas({
       systemName: item.systemName,
       fillType: item.fillType,
     });
+  const isFixedWindow =
+    !isTriangle &&
+    !isPergola &&
+    !isRoof &&
+    (/\bfix\b/i.test(item.name || "") || /\bfix\b/i.test(item.systemName || ""));
+  const isDoubleDoor =
+    !isTriangle &&
+    !isPergola &&
+    !isRoof &&
+    !isFixedWindow &&
+    (/drzwi/i.test(item.name || "") || /drzwi/i.test(item.systemName || ""));
   const roofCoverType = isRoof
     ? getRoofCoverType({
         name: item.name,
@@ -1163,17 +1174,61 @@ export function CadCanvas({
                           strokeWidth="1.5"
                         />
 
-                        {/* Pionowa czerwona linia podziału / zachodzenia skrzydeł */}
+                        {/* Pionowa linia podziału / słupek drzwi */}
                         {idx > 0 && (
                           <line
                             x1={segX}
                             y1={segY}
                             x2={segX}
                             y2={segY + openingH}
-                            stroke="#dc2626"
-                            strokeWidth="2"
+                            stroke={isDoubleDoor ? "#1e242b" : "#dc2626"}
+                            strokeWidth={isDoubleDoor ? "6" : "2"}
                           />
                         )}
+
+                        {/* Linie otwierania skrzydeł dla drzwi dwuskrzydłowych (rozwiernych) */}
+                        {isDoubleDoor && (() => {
+                          const centerY = segY + openingH / 2;
+                          return idx === 0 ? (
+                            <g>
+                              <polyline
+                                points={`${segX + 10},${segY + 10} ${segX + segW - 10},${centerY} ${segX + 10},${segY + openingH - 10}`}
+                                fill="none"
+                                stroke="#0f172a"
+                                strokeWidth="2.5"
+                                strokeDasharray="14 8"
+                                strokeOpacity="0.75"
+                              />
+                              <rect
+                                x={segX + segW - 22}
+                                y={centerY - 36}
+                                width="10"
+                                height="72"
+                                rx="3"
+                                fill="#0f172a"
+                              />
+                            </g>
+                          ) : (
+                            <g>
+                              <polyline
+                                points={`${segX + segW - 10},${segY + 10} ${segX + 10},${centerY} ${segX + segW - 10},${segY + openingH - 10}`}
+                                fill="none"
+                                stroke="#0f172a"
+                                strokeWidth="2.5"
+                                strokeDasharray="14 8"
+                                strokeOpacity="0.75"
+                              />
+                              <rect
+                                x={segX + 12}
+                                y={centerY - 36}
+                                width="10"
+                                height="72"
+                                rx="3"
+                                fill="#0f172a"
+                              />
+                            </g>
+                          );
+                        })()}
 
                         {/* Półprzezroczysty subtelny odblask szkła */}
                         <line
@@ -1185,6 +1240,45 @@ export function CadCanvas({
                           strokeWidth="1.5"
                           strokeOpacity="0.25"
                         />
+
+                        {/* Architektoniczny znak stałego szklenia (Okno FIX: krzyżyk + etykieta FIX) */}
+                        {isFixedWindow && (() => {
+                          const centerY = segY + openingH / 2;
+                          const crossArm = Math.min(segW, openingH) * 0.12;
+                          return (
+                            <g>
+                              <line
+                                x1={centerX - crossArm}
+                                y1={centerY - 46}
+                                x2={centerX + crossArm}
+                                y2={centerY - 46}
+                                stroke="#0e7490"
+                                strokeWidth="2.5"
+                                strokeOpacity="0.7"
+                              />
+                              <line
+                                x1={centerX}
+                                y1={centerY - 46 - crossArm}
+                                x2={centerX}
+                                y2={centerY - 46 + crossArm}
+                                stroke="#0e7490"
+                                strokeWidth="2.5"
+                                strokeOpacity="0.7"
+                              />
+                              <text
+                                x={centerX}
+                                y={centerY + 62}
+                                fill="#0e7490"
+                                fontSize={Math.min(34, Math.max(20, Math.round(segW * 0.08)))}
+                                fontWeight="800"
+                                textAnchor="middle"
+                                letterSpacing="2px"
+                              >
+                                FIX
+                              </text>
+                            </g>
+                          );
+                        })()}
 
                         {/* Wymiar kwatery u góry szkła */}
                         <g
