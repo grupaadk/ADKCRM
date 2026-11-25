@@ -389,7 +389,11 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
               <span>{offer.offerNumber}</span>
               {oppOffers.length > 1 && (
                 <span className="text-[10px] font-sans font-semibold opacity-80">
-                  (wariant {oppOffers.findIndex((o) => o._id === offer._id) + 1}/{oppOffers.length})
+                  (wariant{" "}
+                  {[...oppOffers]
+                    .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+                    .findIndex((o) => o._id === offer._id) + 1}
+                  /{oppOffers.length})
                 </span>
               )}
               <ChevronDown size={11} className="text-[#0e7490]" />

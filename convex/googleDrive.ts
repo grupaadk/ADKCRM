@@ -3378,7 +3378,30 @@ export const generateOfferPdf = action({
 
     const safeLastName = clientLastName.replace(/[/\\:*?"<>|]/g, " ").trim() || "Klient";
     const safeOfferNumber = (offer.offerNumber || "ADK").replace(/[/\\:*?"<>|]/g, "_");
-    const safeOfferName = nazwaOferty.replace(/[/\\:*?"<>|]/g, " ").replace(/\s+/g, " ").trim() || `Oferta ${safeOfferNumber} ${safeLastName}`;
+
+    // Jeśli szansa ma więcej niż 1 wariant oferty, dopisz dynamicznie "_Wariant_<N>" (chronologicznie od najstarszego)
+    let variantSuffix = "";
+    try {
+      const oppOffers = await ctx.runQuery(api.offers.listByOpportunity, {
+        opportunityId: opportunity._id,
+      });
+      if (oppOffers && oppOffers.length > 1) {
+        const sortedChrono = [...oppOffers].sort(
+          (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0),
+        );
+        const variantIdx = sortedChrono.findIndex((o) => o._id === offer._id);
+        if (variantIdx >= 0) {
+          variantSuffix = `_Wariant_${variantIdx + 1}`;
+        }
+      }
+    } catch (variantErr) {
+      console.warn("[generateOfferPdf] Could not determine variant index:", variantErr);
+    }
+
+    const baseSafeOfferName =
+      nazwaOferty.replace(/[/\\:*?"<>|]/g, " ").replace(/\s+/g, " ").trim() ||
+      `Oferta ${safeOfferNumber} ${safeLastName}`;
+    const safeOfferName = `${baseSafeOfferName}${variantSuffix}`;
     const docCopyName = `${safeOfferName.replace(/\s+/g, "_")}_temp_${Date.now()}`;
 
     const slidesFinancials = buildOfferReplacements({
