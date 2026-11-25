@@ -274,8 +274,8 @@ export function CadCanvas({
       })
     : "polycarbonate";
 
-  // Obliczenia wymiarów kwater (dla drzwi dwuskrzydłowych zawsze min. 2 skrzydła: 65% / 35%)
-  const effectivePanes = isDoubleDoor ? Math.max(2, panes) : panes;
+  // Obliczenia wymiarów kwater (dla drzwi dwuskrzydłowych zawsze dokładnie 2 skrzydła: 65% / 35%)
+  const effectivePanes = isDoubleDoor ? 2 : panes;
   const paneWidth = Math.round(width / effectivePanes);
   const segments: CadSegment[] =
     item.segments &&
@@ -1465,11 +1465,17 @@ export function CadCanvas({
                     </>
                   ) : (
                     <>
-                      {/* GÓRA: Wymiary poszczególnych kwater (np. 960 | 960 | 960) */}
-                      {(!isPergola || panes > 1) &&
+                      {/* GÓRA: Wymiary poszczególnych kwater (np. 960 | 960 | 960 lub 910 | 490 dla drzwi) */}
+                      {(!isPergola || effectivePanes > 1) &&
                         segments.map((seg, idx) => {
-                        const segStartX = originX + (idx * width) / panes;
-                        const segEndX = originX + ((idx + 1) * width) / panes;
+                        const totalSegW = segments.reduce((acc, s) => acc + (s.widthMm || 0), 0) || width;
+                        const prevSegW = segments.slice(0, idx).reduce((acc, s) => acc + (s.widthMm || 0), 0);
+                        const segStartX = isDoubleDoor
+                          ? originX + (prevSegW / totalSegW) * width
+                          : originX + (idx * width) / effectivePanes;
+                        const segEndX = isDoubleDoor
+                          ? originX + ((prevSegW + (seg.widthMm || 0)) / totalSegW) * width
+                          : originX + ((idx + 1) * width) / effectivePanes;
                         const dimY = originY - 60;
                         const dimKey = `seg-${idx}`;
                         const isSegHovered = hoveredDim === dimKey;

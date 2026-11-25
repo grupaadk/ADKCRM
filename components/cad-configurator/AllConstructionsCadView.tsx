@@ -1771,7 +1771,7 @@ export function AllConstructionsCadView({
                                   !isTriangle &&
                                   !isFixedWindow &&
                                   (/drzwi/i.test(item.name || "") || /drzwi/i.test(item.systemName || ""));
-                                const effectivePanes = isDoubleDoor ? Math.max(2, panes) : panes;
+                                const effectivePanes = isDoubleDoor ? 2 : panes;
                                 const effectiveSegments =
                                   segments.length >= effectivePanes
                                     ? segments.slice(0, effectivePanes)

@@ -308,7 +308,7 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
       ${postsSvg}
     `;
   } else {
-    const effectivePanes = isDoubleDoor ? Math.max(2, panes) : panes;
+    const effectivePanes = isDoubleDoor ? 2 : panes;
     const openingW = width - frameThickness * 2;
     const openingH = height - frameThickness * 2;
     const segWidths = (() => {
