@@ -3027,6 +3027,12 @@ export function buildOfferReplacements(params: {
     { placeholder: "{{dzisiaj}}", value: todayStr },
     { placeholder: "{{today}}", value: todayStr },
     { placeholder: "{{date}}", value: todayStr },
+    // Złożone wzorce z rabatem i walutą (muszą być przed pojedynczymi makrami, aby nie dublować "zł" ani nie pokazywać "0% RABAT")
+    { placeholder: "{{wartosc_przed_rabatem}} - {{rabat}}RABAT = {{wartosc_netto}}", value: rabatKalkulacja },
+    { placeholder: "{{wartosc_przed_rabatem}} - {{rabat}} RABAT = {{wartosc_netto}}", value: rabatKalkulacja },
+    { placeholder: "{{wartosc_netto}} zł", value: totalNetStr },
+    { placeholder: "{{wartosc_brutto}} zł", value: totalGrossStr },
+    { placeholder: "{{wartosc_przed_rabatem}} zł", value: netBeforeDiscountStr },
     { placeholder: "{{wartosc_netto}}", value: totalNetStr },
     { placeholder: "{{totalNet}}", value: totalNetStr },
     { placeholder: "{{wartosc_brutto}}", value: totalGrossStr },
@@ -3176,11 +3182,11 @@ export function buildOfferReplacements(params: {
     },
     {
       placeholder: "6 997,11 - 20%RABAT = 5 597,69",
-      value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
+      value: rabatKalkulacja,
     },
     {
       placeholder: "6\u00a0997,11 - 20%RABAT = 5\u00a0597,69",
-      value: `${netBeforeDiscountStr} - ${discountPctStr}RABAT = ${totalNetStr}`,
+      value: rabatKalkulacja,
     },
     ...(isDocsTemplate
       ? [
