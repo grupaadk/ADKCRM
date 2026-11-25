@@ -952,7 +952,7 @@ export function LeftPropertiesPanel({
             Opis techniczny
           </label>
           <textarea
-            rows={2}
+            rows={5}
             disabled={readOnly}
             value={descriptionInput}
             onFocus={() => setFocusedField("description")}
@@ -967,7 +967,7 @@ export function LeftPropertiesPanel({
               setDescriptionInput(v);
               onChange({ description: v });
             }}
-            className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1.5 text-[#4b5563] focus:border-[#4ABBC3] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none resize-none text-xs"
+            className="w-full min-h-[110px] bg-white border border-[#d4dae3] rounded-md px-2.5 py-2 text-[#4b5563] leading-relaxed focus:border-[#4ABBC3] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none resize-y text-xs"
             placeholder="np. Przesuwna zabudowa tarasowa"
           />
         </div>
