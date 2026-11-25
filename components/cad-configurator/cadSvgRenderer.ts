@@ -310,11 +310,25 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
   } else {
     const openingW = width - frameThickness * 2;
     const openingH = height - frameThickness * 2;
-    const segW = openingW / panes;
+    const segWidths = (() => {
+      if (isDoubleDoor && panes === 2) {
+        const s0 = item.segments?.[0]?.widthMm || 0;
+        const s1 = item.segments?.[1]?.widthMm || 0;
+        if (s0 > 0 && s1 > 0 && Math.abs(s0 - s1) > 10) {
+          const totalS = s0 + s1;
+          return [openingW * (s0 / totalS), openingW * (s1 / totalS)];
+        }
+        return [openingW * 0.65, openingW * 0.35];
+      }
+      return Array.from({ length: panes }, () => openingW / panes);
+    })();
 
     let panesSvg = "";
+    let runningX = originX + frameThickness;
     for (let idx = 0; idx < panes; idx++) {
-      const segX = originX + frameThickness + idx * segW;
+      const segW = segWidths[idx] ?? openingW / panes;
+      const segX = runningX;
+      runningX += segW;
       const segY = originY + frameThickness;
       const centerX = segX + segW / 2;
 
@@ -331,18 +345,17 @@ export function renderCadConstructionSvg(item: CadConstructionItem): string {
       const doorOpeningSvg = isDoubleDoor
         ? idx === 0
           ? `
-            <polyline points="${segX + 10},${segY + 10} ${segX + segW - 10},${centerY} ${segX + 10},${segY + openingH - 10}" fill="none" stroke="#0f172a" stroke-width="2.5" stroke-dasharray="14 8" stroke-opacity="0.75" />
-            <rect x="${segX + segW - 22}" y="${centerY - 36}" width="10" height="72" rx="3" fill="#0f172a" />
+            <polyline points="${segX + 12},${segY + 12} ${segX + segW - 12},${centerY} ${segX + 12},${segY + openingH - 12}" fill="none" stroke="#0f172a" stroke-width="3.5" stroke-opacity="0.88" />
+            <rect x="${segX + segW - 28}" y="${centerY - 40}" width="11" height="80" rx="3" fill="#0f172a" />
           `
           : `
-            <polyline points="${segX + segW - 10},${segY + 10} ${segX + 10},${centerY} ${segX + segW - 10},${segY + openingH - 10}" fill="none" stroke="#0f172a" stroke-width="2.5" stroke-dasharray="14 8" stroke-opacity="0.75" />
-            <rect x="${segX + 12}" y="${centerY - 36}" width="10" height="72" rx="3" fill="#0f172a" />
+            <polyline points="${segX + segW - 12},${segY + 12} ${segX + 12},${centerY} ${segX + segW - 12},${segY + openingH - 12}" fill="none" stroke="#0f172a" stroke-width="3.5" stroke-opacity="0.88" />
           `
         : "";
 
       panesSvg += `
         <rect x="${segX + 2}" y="${segY + 2}" width="${segW - 4}" height="${openingH - 4}" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
-        ${idx > 0 ? `<line x1="${segX}" y1="${segY}" x2="${segX}" y2="${segY + openingH}" stroke="${isDoubleDoor ? "#1e242b" : "#dc2626"}" stroke-width="${isDoubleDoor ? "6" : "2"}" />` : ""}
+        ${idx > 0 ? `<line x1="${segX}" y1="${segY}" x2="${segX}" y2="${segY + openingH}" stroke="${isDoubleDoor ? "#1e242b" : "#dc2626"}" stroke-width="${isDoubleDoor ? "12" : "2"}" />` : ""}
         <line x1="${segX + 24}" y1="${segY + openingH - 50}" x2="${segX + segW - 24}" y2="${segY + 50}" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.25" />
         ${fixSymbolSvg}
         ${doorOpeningSvg}

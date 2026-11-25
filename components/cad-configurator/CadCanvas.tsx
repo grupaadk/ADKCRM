@@ -1152,8 +1152,22 @@ export function CadCanvas({
                   {segments.map((seg, idx) => {
                     const openingW = width - frameThickness * 2;
                     const openingH = height - frameThickness * 2;
-                    const segW = openingW / panes;
-                    const segX = originX + frameThickness + idx * segW;
+                    // Dla drzwi dwuskrzydłowych: asymetryczny podział jak na szkicu (lewe skrzydło czynne ~65%, prawe bierne ~35%)
+                    const segWidths = (() => {
+                      if (isDoubleDoor && panes === 2) {
+                        const s0 = segments[0]?.widthMm || 0;
+                        const s1 = segments[1]?.widthMm || 0;
+                        if (s0 > 0 && s1 > 0 && Math.abs(s0 - s1) > 10) {
+                          const totalS = s0 + s1;
+                          return [openingW * (s0 / totalS), openingW * (s1 / totalS)];
+                        }
+                        return [openingW * 0.65, openingW * 0.35];
+                      }
+                      return Array.from({ length: panes }, () => openingW / panes);
+                    })();
+                    const segW = segWidths[idx] ?? openingW / panes;
+                    const segOffsetX = segWidths.slice(0, idx).reduce((acc, w) => acc + w, 0);
+                    const segX = originX + frameThickness + segOffsetX;
                     const segY = originY + frameThickness;
 
                     const centerX = segX + segW / 2;
@@ -1182,28 +1196,27 @@ export function CadCanvas({
                             x2={segX}
                             y2={segY + openingH}
                             stroke={isDoubleDoor ? "#1e242b" : "#dc2626"}
-                            strokeWidth={isDoubleDoor ? "6" : "2"}
+                            strokeWidth={isDoubleDoor ? "12" : "2"}
                           />
                         )}
 
-                        {/* Linie otwierania skrzydeł dla drzwi dwuskrzydłowych (rozwiernych) */}
+                        {/* Linie otwierania skrzydeł dla drzwi dwuskrzydłowych asymetrycznych (dokładnie jak na szkicu) */}
                         {isDoubleDoor && (() => {
                           const centerY = segY + openingH / 2;
                           return idx === 0 ? (
                             <g>
                               <polyline
-                                points={`${segX + 10},${segY + 10} ${segX + segW - 10},${centerY} ${segX + 10},${segY + openingH - 10}`}
+                                points={`${segX + 12},${segY + 12} ${segX + segW - 12},${centerY} ${segX + 12},${segY + openingH - 12}`}
                                 fill="none"
                                 stroke="#0f172a"
-                                strokeWidth="2.5"
-                                strokeDasharray="14 8"
-                                strokeOpacity="0.75"
+                                strokeWidth="3.5"
+                                strokeOpacity="0.88"
                               />
                               <rect
-                                x={segX + segW - 22}
-                                y={centerY - 36}
-                                width="10"
-                                height="72"
+                                x={segX + segW - 28}
+                                y={centerY - 40}
+                                width="11"
+                                height="80"
                                 rx="3"
                                 fill="#0f172a"
                               />
@@ -1211,20 +1224,11 @@ export function CadCanvas({
                           ) : (
                             <g>
                               <polyline
-                                points={`${segX + segW - 10},${segY + 10} ${segX + 10},${centerY} ${segX + segW - 10},${segY + openingH - 10}`}
+                                points={`${segX + segW - 12},${segY + 12} ${segX + 12},${centerY} ${segX + segW - 12},${segY + openingH - 12}`}
                                 fill="none"
                                 stroke="#0f172a"
-                                strokeWidth="2.5"
-                                strokeDasharray="14 8"
-                                strokeOpacity="0.75"
-                              />
-                              <rect
-                                x={segX + 12}
-                                y={centerY - 36}
-                                width="10"
-                                height="72"
-                                rx="3"
-                                fill="#0f172a"
+                                strokeWidth="3.5"
+                                strokeOpacity="0.88"
                               />
                             </g>
                           );

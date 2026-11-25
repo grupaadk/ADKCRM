@@ -1763,46 +1763,133 @@ export function AllConstructionsCadView({
                               />
 
                               {/* Kwatery szklane */}
-                              {segments.map((seg, idx) => {
+                              {(() => {
+                                const isFixedWindow =
+                                  !isTriangle &&
+                                  (/\bfix\b/i.test(item.name || "") || /\bfix\b/i.test(item.systemName || ""));
+                                const isDoubleDoor =
+                                  !isTriangle &&
+                                  !isFixedWindow &&
+                                  (/drzwi/i.test(item.name || "") || /drzwi/i.test(item.systemName || ""));
                                 const openingW = width - frameThickness * 2;
                                 const openingH = height - frameThickness * 2;
-                                const segW = openingW / panes;
-                                const segX = originX + frameThickness + idx * segW;
-                                const segY = originY + frameThickness;
-                                const centerX = segX + segW / 2;
-                                const glassW = Math.round(segW - 10);
-                                const glassH = Math.round(openingH - 12);
+                                const segWidths =
+                                  isDoubleDoor && panes === 2
+                                    ? (() => {
+                                        const s0 = segments[0]?.widthMm || 0;
+                                        const s1 = segments[1]?.widthMm || 0;
+                                        if (s0 > 0 && s1 > 0 && Math.abs(s0 - s1) > 10) {
+                                          const totalS = s0 + s1;
+                                          return [openingW * (s0 / totalS), openingW * (s1 / totalS)];
+                                        }
+                                        return [openingW * 0.65, openingW * 0.35];
+                                      })()
+                                    : Array.from({ length: panes }, () => openingW / panes);
 
-                                return (
-                                  <g key={idx}>
-                                    <rect
-                                      x={segX + 2}
-                                      y={segY + 2}
-                                      width={segW - 4}
-                                      height={openingH - 4}
-                                      fill="#ffffff"
-                                      stroke="#e2e8f0"
-                                      strokeWidth="1.5"
-                                    />
-                                    {idx > 0 && (
-                                      <line
-                                        x1={segX}
-                                        y1={segY}
-                                        x2={segX}
-                                        y2={segY + openingH}
-                                        stroke="#dc2626"
-                                        strokeWidth="2.5"
+                                return segments.map((seg, idx) => {
+                                  const segW = segWidths[idx] ?? openingW / panes;
+                                  const segOffsetX = segWidths.slice(0, idx).reduce((acc, w) => acc + w, 0);
+                                  const segX = originX + frameThickness + segOffsetX;
+                                  const segY = originY + frameThickness;
+                                  const centerX = segX + segW / 2;
+                                  const centerY = segY + openingH / 2;
+                                  const glassW = Math.round(segW - 10);
+                                  const glassH = Math.round(openingH - 12);
+                                  const crossArm = Math.min(segW, openingH) * 0.12;
+
+                                  return (
+                                    <g key={idx}>
+                                      <rect
+                                        x={segX + 2}
+                                        y={segY + 2}
+                                        width={segW - 4}
+                                        height={openingH - 4}
+                                        fill="#ffffff"
+                                        stroke="#e2e8f0"
+                                        strokeWidth="1.5"
                                       />
-                                    )}
-                                    <line
-                                      x1={segX + 24}
-                                      y1={segY + openingH - 50}
-                                      x2={segX + segW - 24}
-                                      y2={segY + 50}
-                                      stroke="#38bdf8"
-                                      strokeWidth="2"
-                                      strokeOpacity="0.25"
-                                    />
+                                      {idx > 0 && (
+                                        <line
+                                          x1={segX}
+                                          y1={segY}
+                                          x2={segX}
+                                          y2={segY + openingH}
+                                          stroke={isDoubleDoor ? "#1e242b" : "#dc2626"}
+                                          strokeWidth={isDoubleDoor ? "12" : "2.5"}
+                                        />
+                                      )}
+                                      <line
+                                        x1={segX + 24}
+                                        y1={segY + openingH - 50}
+                                        x2={segX + segW - 24}
+                                        y2={segY + 50}
+                                        stroke="#38bdf8"
+                                        strokeWidth="2"
+                                        strokeOpacity="0.25"
+                                      />
+                                      {isFixedWindow && (
+                                        <g>
+                                          <line
+                                            x1={centerX - crossArm}
+                                            y1={centerY - 46}
+                                            x2={centerX + crossArm}
+                                            y2={centerY - 46}
+                                            stroke="#0e7490"
+                                            strokeWidth="2.5"
+                                            strokeOpacity="0.7"
+                                          />
+                                          <line
+                                            x1={centerX}
+                                            y1={centerY - 46 - crossArm}
+                                            x2={centerX}
+                                            y2={centerY - 46 + crossArm}
+                                            stroke="#0e7490"
+                                            strokeWidth="2.5"
+                                            strokeOpacity="0.7"
+                                          />
+                                          <text
+                                            x={centerX}
+                                            y={centerY + 62}
+                                            fill="#0e7490"
+                                            fontSize={Math.min(34, Math.max(20, Math.round(segW * 0.08)))}
+                                            fontWeight="800"
+                                            textAnchor="middle"
+                                            letterSpacing="2px"
+                                          >
+                                            FIX
+                                          </text>
+                                        </g>
+                                      )}
+                                      {isDoubleDoor &&
+                                        (idx === 0 ? (
+                                          <g>
+                                            <polyline
+                                              points={`${segX + 12},${segY + 12} ${segX + segW - 12},${centerY} ${segX + 12},${segY + openingH - 12}`}
+                                              fill="none"
+                                              stroke="#0f172a"
+                                              strokeWidth="3.5"
+                                              strokeOpacity="0.88"
+                                            />
+                                            <rect
+                                              x={segX + segW - 28}
+                                              y={centerY - 40}
+                                              width="11"
+                                              height="80"
+                                              rx="3"
+                                              fill="#0f172a"
+                                            />
+                                          </g>
+                                        ) : (
+                                          <g>
+                                            <polyline
+                                              points={`${segX + segW - 12},${segY + 12} ${segX + 12},${centerY} ${segX + segW - 12},${segY + openingH - 12}`}
+                                              fill="none"
+                                              stroke="#0f172a"
+                                              strokeWidth="3.5"
+                                              strokeOpacity="0.88"
+                                            />
+                                          </g>
+                                        ))}
                                     <text
                                       x={centerX}
                                       y={segY + 72}
@@ -1822,7 +1909,8 @@ export function AllConstructionsCadView({
                                     </text>
                                   </g>
                                 );
-                              })}
+                              });
+                              })()}
                             </>
                           )}
 
