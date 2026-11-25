@@ -3270,15 +3270,28 @@ export const generateOfferPdf = action({
       "";
     const authorPhone = creatorUser?.phone?.trim() || "";
 
-    // Dynamiczne ustalenie szablonu:
-    // 1. Jawnie przekazany w akcji (args.templateFileId)
+    // Dynamiczne ustalenie szablonu (oddzielone od usług):
+    // 1. Jawnie wybrany przez użytkownika w dropdownie (args.templateFileId)
     // 2. Przypisany wprost do oferty (offer.templateFileId)
-    // 3. Szablon skonfigurowany w usłudze oferty / szansy (service.offerTemplateGoogleDriveId)
-    // 4. Domyślny szablon Google Docs (DEFAULT_OFFER_DOCS_TEMPLATE_ID)
+    // 3. Domyślny szablon z tabeli offerTemplates
+    // 4. Domyślny szablon systemowy Google Docs (DEFAULT_OFFER_DOCS_TEMPLATE_ID)
+    let defaultOfferTemplateId: string | undefined;
+    if (!args.templateFileId && !offer.templateFileId) {
+      try {
+        const templates = await ctx.runQuery(api.offerTemplates.list, {});
+        const def = templates.find((t) => t.isDefault) ?? templates[0];
+        if (def?.googleDriveFileId) {
+          defaultOfferTemplateId = def.googleDriveFileId;
+        }
+      } catch (tplErr) {
+        console.warn("[generateOfferPdf] Could not load default offerTemplate:", tplErr);
+      }
+    }
+
     const templateId =
       args.templateFileId ||
       offer.templateFileId ||
-      service?.offerTemplateGoogleDriveId ||
+      defaultOfferTemplateId ||
       DEFAULT_OFFER_DOCS_TEMPLATE_ID;
 
     const connection = await getAuthorizedConnection(ctx);

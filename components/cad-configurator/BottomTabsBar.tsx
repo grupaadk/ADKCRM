@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { CadConstructionItem } from "./CadCanvas";
 import {
   FileText,
@@ -8,7 +9,18 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  Star,
+  Settings,
 } from "lucide-react";
+
+export interface OfferTemplateOption {
+  _id: string;
+  name: string;
+  googleDriveFileId: string;
+  description?: string;
+  isDefault?: boolean;
+}
 
 export interface ConstructionTemplate {
   _id: string;
@@ -28,10 +40,11 @@ interface BottomTabsBarProps {
   activeTab: "offer" | "all-cad" | string; // 'offer', 'all-cad' lub ID pozycji
   items: CadConstructionItem[];
   templates?: ConstructionTemplate[];
+  offerTemplates?: OfferTemplateOption[];
   onSelectTab: (tabId: "offer" | "all-cad" | string) => void;
   onOpenAddModal?: () => void;
   onAddConstruction?: (templateId?: string) => void;
-  onGenerateOffer?: () => void;
+  onGenerateOffer?: (templateFileId?: string) => void;
   isGeneratingOffer?: boolean;
   readOnly?: boolean;
 }
@@ -39,14 +52,35 @@ interface BottomTabsBarProps {
 export function BottomTabsBar({
   activeTab,
   items,
+  offerTemplates = [],
   onSelectTab,
   onGenerateOffer,
   isGeneratingOffer = false,
   readOnly = false,
 }: BottomTabsBarProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+
+  useEffect(() => {
+    if (!showTemplateDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowTemplateDropdown(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowTemplateDropdown(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showTemplateDropdown]);
 
   const checkScroll = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -206,23 +240,95 @@ export function BottomTabsBar({
       </div>
 
       {/* Right side: CTA do generowania oferty & Status indicator */}
-      <div className="flex items-center gap-2 shrink-0 pl-2 bg-white border-l border-[#e3e7ee]/60 z-10">
+      <div className="flex items-center gap-2 shrink-0 pl-2 bg-white border-l border-[#e3e7ee]/60 z-20">
         {!readOnly && (
-          <button
-            type="button"
-            disabled={isGeneratingOffer}
-            onClick={onGenerateOffer}
-            title="Wygeneruj ofertę w PDF (szablon Google Docs) i zapisz w folderze 'Oferty - wysłane do Klienta'"
-            className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[#4ABBC3] hover:bg-[#35a3ab] disabled:opacity-60 text-white flex items-center gap-1.5 transition-colors shadow-2xs shrink-0 cursor-pointer"
-          >
-            {isGeneratingOffer ? (
-              <Loader2 size={13} className="animate-spin text-white" />
-            ) : (
-              <FileText size={13} strokeWidth={2.2} />
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              disabled={isGeneratingOffer}
+              onClick={() => setShowTemplateDropdown((prev) => !prev)}
+              title="Wybierz szablon i wygeneruj ofertę w PDF"
+              className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[#4ABBC3] hover:bg-[#35a3ab] disabled:opacity-60 text-white flex items-center gap-1.5 transition-colors shadow-2xs shrink-0 cursor-pointer"
+            >
+              {isGeneratingOffer ? (
+                <Loader2 size={13} className="animate-spin text-white" />
+              ) : (
+                <FileText size={13} strokeWidth={2.2} />
+              )}
+              <span className="hidden sm:inline">{isGeneratingOffer ? "Generowanie..." : "Generuj ofertę"}</span>
+              <span className="sm:hidden">{isGeneratingOffer ? "..." : "Generuj"}</span>
+              {!isGeneratingOffer && (
+                <ChevronUp
+                  size={12}
+                  className={`transition-transform ${showTemplateDropdown ? "rotate-180" : ""}`}
+                />
+              )}
+            </button>
+
+            {showTemplateDropdown && !isGeneratingOffer && (
+              <div className="absolute bottom-full right-0 mb-2 w-72 bg-white rounded-lg border border-[#e2e8f0] shadow-xl z-50 overflow-hidden text-xs">
+                <div className="px-3 py-2 bg-[#f8fafc] border-b border-[#e2e8f0] flex items-center justify-between">
+                  <span className="font-bold text-[#475569] text-[11px]">Wybierz szablon oferty</span>
+                  <Link
+                    href="/admin/ustawienia?tab=szablony-ofert"
+                    onClick={() => setShowTemplateDropdown(false)}
+                    className="text-[10.5px] text-[#0e7490] hover:underline flex items-center gap-1 font-medium"
+                  >
+                    <Settings size={10} />
+                    <span>Zarządzaj</span>
+                  </Link>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto divide-y divide-[#f1f5f9]">
+                  {offerTemplates.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTemplateDropdown(false);
+                        onGenerateOffer?.(undefined);
+                      }}
+                      className="w-full text-left px-3 py-2.5 hover:bg-[#f0fdff] transition-colors cursor-pointer"
+                    >
+                      <div className="font-semibold text-[#0b1220]">Domyślny szablon systemowy</div>
+                      <div className="text-[10.5px] text-[#64748b] mt-0.5">
+                        Dodaj własne szablony w Ustawienia → Szablony ofert
+                      </div>
+                    </button>
+                  ) : (
+                    offerTemplates.map((tpl) => (
+                      <button
+                        key={tpl._id}
+                        type="button"
+                        onClick={() => {
+                          setShowTemplateDropdown(false);
+                          onGenerateOffer?.(tpl.googleDriveFileId);
+                        }}
+                        className="w-full text-left px-3 py-2.5 hover:bg-[#f0fdff] transition-colors cursor-pointer flex items-start justify-between gap-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="font-semibold text-[#0b1220] flex items-center gap-1.5">
+                            <FileText size={12} className="text-[#0e7490] shrink-0" />
+                            <span className="truncate">{tpl.name}</span>
+                          </div>
+                          {tpl.description && (
+                            <div className="text-[10.5px] text-[#64748b] truncate mt-0.5 pl-4">
+                              {tpl.description}
+                            </div>
+                          )}
+                        </div>
+                        {tpl.isDefault && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[rgba(74,187,195,0.14)] text-[#0e7490] text-[9.5px] font-bold shrink-0">
+                            <Star size={9} className="fill-[#0e7490]" />
+                            Domyślny
+                          </span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
             )}
-            <span className="hidden sm:inline">{isGeneratingOffer ? "Generowanie..." : "Generuj ofertę"}</span>
-            <span className="sm:hidden">{isGeneratingOffer ? "..." : "Generuj"}</span>
-          </button>
+          </div>
         )}
 
         {/* Right status indicator in bottom bar */}

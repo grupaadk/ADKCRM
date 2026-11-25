@@ -1449,6 +1449,17 @@ export default defineSchema({
   })
     .index("by_order", ["orderId"])
     .index("by_team", ["installationTeamId"]),
+
+  // Niezależny słownik szablonów ofert PDF (Google Docs / Slides / Office na Google Drive)
+  offerTemplates: defineTable({
+    name: v.string(),
+    googleDriveFileId: v.string(),
+    description: v.optional(v.string()),
+    isDefault: v.optional(v.boolean()),
+    order: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_order", ["order"]),
 });
 
 

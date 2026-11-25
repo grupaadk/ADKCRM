@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import toast from "react-hot-toast";
 import { CadConstructionItem } from "./CadCanvas";
+import { OfferTemplateOption } from "./BottomTabsBar";
 import { uploadCadSnapshotsForOffer } from "./cadSvgRenderer";
 import { isGlassSystemConstruction, checkIsStandard, calculateGlassSystemPricing } from "@/lib/glassPricing";
 import {
@@ -43,6 +44,9 @@ import {
   Sparkles,
   Search,
   ArrowUpRight,
+  ChevronDown,
+  Star,
+  Settings,
 } from "lucide-react";
 
 const PRESET_DISCOUNTS = [0, 3, 5, 7, 10, 15, 20];
@@ -119,7 +123,8 @@ interface OfferSummaryTabProps {
     itemId: string,
     patch: { widthMm?: number; heightMm?: number }
   ) => void;
-  onGeneratePdf?: () => Promise<void>;
+  offerTemplates?: OfferTemplateOption[];
+  onGeneratePdf?: (templateFileId?: string) => Promise<void>;
   isGeneratingPdf?: boolean;
   readOnly?: boolean;
 }
@@ -619,6 +624,7 @@ export function OfferSummaryTab({
   onDeletePosition,
   onAddNewPosition,
   onUpdateDimensions,
+  offerTemplates = [],
   onGeneratePdf,
   isGeneratingPdf: externalIsGeneratingPdf,
   readOnly = false,
@@ -629,6 +635,26 @@ export function OfferSummaryTab({
   const [internalIsGeneratingPdf, setInternalIsGeneratingPdf] = useState(false);
   const isGeneratingPdf = externalIsGeneratingPdf ?? internalIsGeneratingPdf;
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const [showPdfTemplateDropdown, setShowPdfTemplateDropdown] = useState(false);
+  const pdfDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showPdfTemplateDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pdfDropdownRef.current && !pdfDropdownRef.current.contains(e.target as Node)) {
+        setShowPdfTemplateDropdown(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowPdfTemplateDropdown(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showPdfTemplateDropdown]);
 
   const [notes, setNotes] = useState(offer.notes || "");
   const [prevOfferNotes, setPrevOfferNotes] = useState(offer.notes || "");
@@ -789,9 +815,9 @@ export function OfferSummaryTab({
     }
   };
 
-  const handlePrintPdf = async () => {
+  const handlePrintPdf = async (templateFileId?: string) => {
     if (onGeneratePdf) {
-      await onGeneratePdf();
+      await onGeneratePdf(templateFileId);
       return;
     }
 
@@ -814,9 +840,10 @@ export function OfferSummaryTab({
         console.warn("[handlePrintPdf] Ostrzeżenie przy generowaniu zrzutów CAD:", cadErr);
       }
 
-      // 2. Wywołaj akcję generowania oferty PDF z szablonu Google Docs (lub Slides wg usługi)
+      // 2. Wywołaj akcję generowania oferty PDF z wybranego szablonu
       const result = await generateOfferPdf({
         offerId: offer._id as Id<"offers">,
+        templateFileId,
         itemsCadImages,
       });
       toast.success(
@@ -1105,21 +1132,92 @@ export function OfferSummaryTab({
               </button>
             )}
 
-            <button
-              type="button"
-              disabled={isGeneratingPdf}
-              onClick={handlePrintPdf}
-              className="btn bg-white hover:bg-slate-50 text-[#334155] border border-[#cbd5e1] disabled:opacity-60 cursor-pointer"
-              style={{ padding: "6px 11px", fontSize: 11.5 }}
-              title="Wygeneruj ofertę w PDF (szablon Google Docs) i zapisz w folderze 'Oferty - wysłane do Klienta'"
-            >
-              {isGeneratingPdf ? (
-                <Loader2 size={13} className="animate-spin text-[#4ABBC3]" />
-              ) : (
-                <Printer size={13} />
+            <div className="relative" ref={pdfDropdownRef}>
+              <button
+                type="button"
+                disabled={isGeneratingPdf}
+                onClick={() => setShowPdfTemplateDropdown((prev) => !prev)}
+                className="btn bg-white hover:bg-slate-50 text-[#334155] border border-[#cbd5e1] disabled:opacity-60 cursor-pointer"
+                style={{ padding: "6px 11px", fontSize: 11.5 }}
+                title="Wybierz szablon i wygeneruj ofertę w PDF"
+              >
+                {isGeneratingPdf ? (
+                  <Loader2 size={13} className="animate-spin text-[#4ABBC3]" />
+                ) : (
+                  <Printer size={13} />
+                )}
+                <span>{isGeneratingPdf ? "Generowanie..." : "Drukuj / PDF"}</span>
+                {!isGeneratingPdf && (
+                  <ChevronDown
+                    size={12}
+                    className={`transition-transform ${showPdfTemplateDropdown ? "rotate-180" : ""}`}
+                  />
+                )}
+              </button>
+
+              {showPdfTemplateDropdown && !isGeneratingPdf && (
+                <div className="absolute top-full right-0 mt-1.5 w-72 bg-white rounded-lg border border-[#e2e8f0] shadow-xl z-50 overflow-hidden text-xs">
+                  <div className="px-3 py-2 bg-[#f8fafc] border-b border-[#e2e8f0] flex items-center justify-between">
+                    <span className="font-bold text-[#475569] text-[11px]">Wybierz szablon oferty</span>
+                    <Link
+                      href="/admin/ustawienia?tab=szablony-ofert"
+                      onClick={() => setShowPdfTemplateDropdown(false)}
+                      className="text-[10.5px] text-[#0e7490] hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <Settings size={10} />
+                      <span>Zarządzaj</span>
+                    </Link>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto divide-y divide-[#f1f5f9]">
+                    {offerTemplates.length === 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPdfTemplateDropdown(false);
+                          void handlePrintPdf(undefined);
+                        }}
+                        className="w-full text-left px-3 py-2.5 hover:bg-[#f0fdff] transition-colors cursor-pointer"
+                      >
+                        <div className="font-semibold text-[#0b1220]">Domyślny szablon systemowy</div>
+                        <div className="text-[10.5px] text-[#64748b] mt-0.5">
+                          Dodaj własne szablony w Ustawienia → Szablony ofert
+                        </div>
+                      </button>
+                    ) : (
+                      offerTemplates.map((tpl) => (
+                        <button
+                          key={tpl._id}
+                          type="button"
+                          onClick={() => {
+                            setShowPdfTemplateDropdown(false);
+                            void handlePrintPdf(tpl.googleDriveFileId);
+                          }}
+                          className="w-full text-left px-3 py-2.5 hover:bg-[#f0fdff] transition-colors cursor-pointer flex items-start justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="font-semibold text-[#0b1220] flex items-center gap-1.5">
+                              <FileText size={12} className="text-[#0e7490] shrink-0" />
+                              <span className="truncate">{tpl.name}</span>
+                            </div>
+                            {tpl.description && (
+                              <div className="text-[10.5px] text-[#64748b] truncate mt-0.5 pl-4">
+                                {tpl.description}
+                              </div>
+                            )}
+                          </div>
+                          {tpl.isDefault && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[rgba(74,187,195,0.14)] text-[#0e7490] text-[9.5px] font-bold shrink-0">
+                              <Star size={9} className="fill-[#0e7490]" />
+                              Domyślny
+                            </span>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
               )}
-              <span>{isGeneratingPdf ? "Generowanie..." : "Drukuj / PDF"}</span>
-            </button>
+            </div>
 
             <button
               type="button"

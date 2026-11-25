@@ -65,8 +65,9 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
 
   const generateOfferPdf = useAction(api.googleDrive.generateOfferPdf);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
+  const offerTemplates = useQuery(api.offerTemplates.list) ?? [];
 
-  const handleGeneratePdf = async () => {
+  const handleGeneratePdf = async (templateFileId?: string) => {
     if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -86,6 +87,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
 
       const result = await generateOfferPdf({
         offerId,
+        templateFileId,
         itemsCadImages,
       });
       toast.success(
@@ -541,6 +543,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
             onDeletePosition={handleDelete}
             onAddNewPosition={() => setIsAddModalOpen(true)}
             onUpdateDimensions={handleUpdatePositionDimensions}
+            offerTemplates={offerTemplates}
             onGeneratePdf={handleGeneratePdf}
             isGeneratingPdf={isGeneratingPdf}
           />
@@ -573,6 +576,7 @@ export function CadWorkspace({ offerId, onBack }: CadWorkspaceProps) {
         activeTab={effectiveActiveTab}
         items={items}
         templates={templates}
+        offerTemplates={offerTemplates}
         onSelectTab={(tab) => setActiveTab(tab)}
         onOpenAddModal={() => setIsAddModalOpen(true)}
         onAddConstruction={handleAddConstruction}

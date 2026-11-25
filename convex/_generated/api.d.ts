@@ -55,6 +55,7 @@ import type * as notes from "../notes.js";
 import type * as notifications from "../notifications.js";
 import type * as offerAdditionTemplates from "../offerAdditionTemplates.js";
 import type * as offerEmails from "../offerEmails.js";
+import type * as offerTemplates from "../offerTemplates.js";
 import type * as offers from "../offers.js";
 import type * as orderLineItems from "../orderLineItems.js";
 import type * as orderTasks from "../orderTasks.js";
@@ -137,6 +138,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   offerAdditionTemplates: typeof offerAdditionTemplates;
   offerEmails: typeof offerEmails;
+  offerTemplates: typeof offerTemplates;
   offers: typeof offers;
   orderLineItems: typeof orderLineItems;
   orderTasks: typeof orderTasks;
