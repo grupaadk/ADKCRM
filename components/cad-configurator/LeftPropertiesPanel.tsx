@@ -68,6 +68,9 @@ export function LeftPropertiesPanel({
   const [widthInput, setWidthInput] = React.useState<string>(String(item.widthMm || 2880));
   const [heightInput, setHeightInput] = React.useState<string>(String(item.heightMm || 2300));
   const [nameInput, setNameInput] = React.useState<string>(item.name || "");
+  const [colorInput, setColorInput] = React.useState<string>(item.color || "");
+  const [fillTypeInput, setFillTypeInput] = React.useState<string>(item.fillType || "");
+  const [descriptionInput, setDescriptionInput] = React.useState<string>(item.description || "");
   const [focusedField, setFocusedField] = React.useState<string | null>(null);
   const [openRoofDropdown, setOpenRoofDropdown] = React.useState<"width" | "height" | null>(null);
   const roofDimContainerRef = React.useRef<HTMLDivElement | null>(null);
@@ -99,6 +102,18 @@ export function LeftPropertiesPanel({
   React.useEffect(() => {
     if (focusedField !== "name") setNameInput(item.name || "");
   }, [item._id, item.name, focusedField]);
+
+  React.useEffect(() => {
+    if (focusedField !== "color") setColorInput(item.color || "");
+  }, [item._id, item.color, focusedField]);
+
+  React.useEffect(() => {
+    if (focusedField !== "fillType") setFillTypeInput(item.fillType || "");
+  }, [item._id, item.fillType, focusedField]);
+
+  React.useEffect(() => {
+    if (focusedField !== "description") setDescriptionInput(item.description || "");
+  }, [item._id, item.description, focusedField]);
 
   React.useEffect(() => {
     if (focusedField !== "instCost") setInstCostInput(instCost ? instCost.toString() : "");
@@ -828,17 +843,28 @@ export function LeftPropertiesPanel({
               <label className="text-[10px] font-medium text-[#7c8597]">
                 Kolor profili (RAL)
               </label>
-              {item.color && (
+              {colorInput && (
                 <span className="font-mono text-[10px] text-[#0e7490] font-bold">
-                  {item.color}
+                  {colorInput}
                 </span>
               )}
             </div>
             <input
               type="text"
               disabled={readOnly}
-              value={item.color || ""}
-              onChange={(e) => onChange({ color: e.target.value })}
+              value={colorInput}
+              onFocus={() => setFocusedField("color")}
+              onBlur={() => {
+                setFocusedField((prev) => (prev === "color" ? null : prev));
+                if (colorInput !== (item.color || "")) {
+                  onChange({ color: colorInput });
+                }
+              }}
+              onChange={(e) => {
+                const v = e.target.value;
+                setColorInput(v);
+                onChange({ color: v });
+              }}
               placeholder="np. RAL 7016MAT"
               className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1.5 text-[#0b1220] font-mono text-xs focus:border-[#4ABBC3] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none"
             />
@@ -848,9 +874,12 @@ export function LeftPropertiesPanel({
                   <button
                     key={c}
                     type="button"
-                    onClick={() => onChange({ color: c })}
+                    onClick={() => {
+                      setColorInput(c);
+                      onChange({ color: c });
+                    }}
                     className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors border cursor-pointer ${
-                      (item.color || "RAL 7016MAT") === c
+                      (colorInput || "RAL 7016MAT") === c
                         ? "bg-[#e0f9fe] border-[#4ABBC3] text-[#0e7490] font-bold"
                         : "bg-white border-[#e2e8f0] text-[#64748b] hover:border-[#cbd5e1]"
                     }`}
@@ -868,17 +897,28 @@ export function LeftPropertiesPanel({
               <label className="text-[10px] font-medium text-[#7c8597]">
                 Wypełnienie (szkło / panel)
               </label>
-              {item.fillType && (
+              {fillTypeInput && (
                 <span className="font-mono text-[10px] text-[#0e7490] font-bold">
-                  {item.fillType}
+                  {fillTypeInput}
                 </span>
               )}
             </div>
             <input
               type="text"
               disabled={readOnly}
-              value={item.fillType || ""}
-              onChange={(e) => onChange({ fillType: e.target.value })}
+              value={fillTypeInput}
+              onFocus={() => setFocusedField("fillType")}
+              onBlur={() => {
+                setFocusedField((prev) => (prev === "fillType" ? null : prev));
+                if (fillTypeInput !== (item.fillType || "")) {
+                  onChange({ fillType: fillTypeInput });
+                }
+              }}
+              onChange={(e) => {
+                const v = e.target.value;
+                setFillTypeInput(v);
+                onChange({ fillType: v });
+              }}
               placeholder="np. HART 10"
               className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1.5 text-[#0b1220] font-mono text-xs focus:border-[#4ABBC3] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none"
             />
@@ -888,9 +928,12 @@ export function LeftPropertiesPanel({
                   <button
                     key={f}
                     type="button"
-                    onClick={() => onChange({ fillType: f })}
+                    onClick={() => {
+                      setFillTypeInput(f);
+                      onChange({ fillType: f });
+                    }}
                     className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors border cursor-pointer ${
-                      (item.fillType || "HART 10") === f
+                      (fillTypeInput || "HART 10") === f
                         ? "bg-[#e0f9fe] border-[#4ABBC3] text-[#0e7490] font-bold"
                         : "bg-white border-[#e2e8f0] text-[#64748b] hover:border-[#cbd5e1]"
                     }`}
@@ -911,8 +954,19 @@ export function LeftPropertiesPanel({
           <textarea
             rows={2}
             disabled={readOnly}
-            value={item.description || ""}
-            onChange={(e) => onChange({ description: e.target.value })}
+            value={descriptionInput}
+            onFocus={() => setFocusedField("description")}
+            onBlur={() => {
+              setFocusedField((prev) => (prev === "description" ? null : prev));
+              if (descriptionInput !== (item.description || "")) {
+                onChange({ description: descriptionInput });
+              }
+            }}
+            onChange={(e) => {
+              const v = e.target.value;
+              setDescriptionInput(v);
+              onChange({ description: v });
+            }}
             className="w-full bg-white border border-[#d4dae3] rounded-md px-2.5 py-1.5 text-[#4b5563] focus:border-[#4ABBC3] focus:ring-2 focus:ring-[#4ABBC3]/20 focus:outline-none resize-none text-xs"
             placeholder="np. Przesuwna zabudowa tarasowa"
           />
