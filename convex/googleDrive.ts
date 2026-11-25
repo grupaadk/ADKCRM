@@ -3454,16 +3454,43 @@ export const generateOfferPdf = action({
       isDocsTemplate: true,
     });
 
-    // 4. Skopiuj szablon na Google Drive
+    // 4. Sprawdź typ szablonu i skopiuj go na Google Drive (z automatyczną konwersją plików Office .docx/.pptx na Google Docs/Slides)
+    let sourceTemplateMimeType = "";
+    try {
+      const srcMeta = await driveApiFetchWithRetry(
+        ctx,
+        `/files/${templateId}?fields=id,mimeType&supportsAllDrives=true`,
+      );
+      sourceTemplateMimeType = srcMeta?.mimeType || "";
+    } catch (srcMetaErr) {
+      console.warn("[generateOfferPdf] template mimeType pre-check warning:", srcMetaErr);
+    }
+
+    const copyBody: { name: string; parents: string[]; mimeType?: string } = {
+      name: docCopyName,
+      parents: [targetFolderId],
+    };
+    if (
+      sourceTemplateMimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+      sourceTemplateMimeType === "application/vnd.ms-powerpoint" ||
+      sourceTemplateMimeType === "application/vnd.oasis.opendocument.presentation"
+    ) {
+      copyBody.mimeType = "application/vnd.google-apps.presentation";
+    } else if (
+      sourceTemplateMimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      sourceTemplateMimeType === "application/msword" ||
+      sourceTemplateMimeType === "application/vnd.oasis.opendocument.text" ||
+      sourceTemplateMimeType === "application/rtf"
+    ) {
+      copyBody.mimeType = "application/vnd.google-apps.document";
+    }
+
     const copyData = await driveApiFetchWithRetry(
       ctx,
       `/files/${templateId}/copy?supportsAllDrives=true`,
       {
         method: "POST",
-        body: JSON.stringify({
-          name: docCopyName,
-          parents: [targetFolderId],
-        }),
+        body: JSON.stringify(copyBody),
       },
     );
 
