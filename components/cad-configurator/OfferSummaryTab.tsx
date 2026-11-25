@@ -1526,6 +1526,25 @@ export function OfferSummaryTab({
                                       <rect x="3" y="57" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
                                       <rect x="127" y="57" width="10" height="10" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1" />
                                     </g>
+                                  ) : !isTriangle && !isRoof && (/drzwi/i.test(it.name || "") || /drzwi/i.test(it.systemName || "")) ? (
+                                    <g>
+                                      <rect x="2" y="2" width="136" height="66" fill="none" stroke="#dc2626" strokeWidth="1" />
+                                      <rect x="3" y="3" width="134" height="64" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
+                                      <rect x="7" y="7" width="126" height="56" fill="#ffffff" />
+                                      <line x1="88.9" y1="7" x2="88.9" y2="63" stroke="#1e242b" strokeWidth="3" />
+                                      <polyline points="9,9 86.5,35 9,61" fill="none" stroke="#0f172a" strokeWidth="1.6" />
+                                      <rect x="82.5" y="30" width="2.2" height="10" rx="1" fill="#0f172a" />
+                                      <polyline points="131,9 91.5,35 131,61" fill="none" stroke="#0f172a" strokeWidth="1.6" />
+                                    </g>
+                                  ) : !isTriangle && !isRoof && (/\bfix\b/i.test(it.name || "") || /\bfix\b/i.test(it.systemName || "")) ? (
+                                    <g>
+                                      <rect x="2" y="2" width="136" height="66" fill="none" stroke="#dc2626" strokeWidth="1" />
+                                      <rect x="3" y="3" width="134" height="64" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
+                                      <rect x="7" y="7" width="126" height="56" fill="#ffffff" />
+                                      <line x1="62" y1="30" x2="78" y2="30" stroke="#0e7490" strokeWidth="1.6" />
+                                      <line x1="70" y1="22" x2="70" y2="38" stroke="#0e7490" strokeWidth="1.6" />
+                                      <text x="70" y="53" fill="#0e7490" fontSize="11" fontWeight="800" textAnchor="middle">FIX</text>
+                                    </g>
                                   ) : (
                                     <>
                                       <rect

@@ -587,6 +587,19 @@ export function ConstructionsTab() {
                           c.name.toLowerCase().includes("zadaszen") ||
                           Boolean(c.defaultSystem && c.defaultSystem.toLowerCase().includes("zadaszen")));
 
+                      const isFixedWindow =
+                        !isTriangle &&
+                        !isPergola &&
+                        !isRoof &&
+                        (/\bfix\b/i.test(c.name || "") || /\bfix\b/i.test(c.defaultSystem || ""));
+
+                      const isDoubleDoor =
+                        !isTriangle &&
+                        !isPergola &&
+                        !isRoof &&
+                        !isFixedWindow &&
+                        (/drzwi/i.test(c.name || "") || /drzwi/i.test(c.defaultSystem || ""));
+
                       return (
                         <tr
                           key={c._id}
@@ -718,6 +731,28 @@ export function ConstructionsTab() {
                                       <rect x="4" y="77" width="152" height="9" fill="#29323d" />
                                       <rect x="4" y="74" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
                                       <rect x="144" y="74" width="12" height="12" fill="#0f172a" stroke="#4ABBC3" strokeWidth="1.2" />
+                                    </g>
+                                  ) : isDoubleDoor ? (
+                                    <g>
+                                      <rect x="2" y="2" width="156" height="86" fill="none" stroke="#dc2626" strokeWidth="1.5" />
+                                      <rect x="3" y="3" width="154" height="84" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
+                                      <rect x="8" y="8" width="144" height="74" fill="#ffffff" />
+                                      {/* Pionowy słupek przesunięty na 65% */}
+                                      <line x1="101.6" y1="8" x2="101.6" y2="82" stroke="#1e242b" strokeWidth="3.5" />
+                                      {/* Lewe szerokie skrzydło czynne (>) + klamka */}
+                                      <polyline points="10,10 99,45 10,80" fill="none" stroke="#0f172a" strokeWidth="1.8" />
+                                      <rect x="94" y="39" width="2.5" height="12" rx="1" fill="#0f172a" />
+                                      {/* Prawe wąskie skrzydło bierne (<) */}
+                                      <polyline points="150,10 104,45 150,80" fill="none" stroke="#0f172a" strokeWidth="1.8" />
+                                    </g>
+                                  ) : isFixedWindow ? (
+                                    <g>
+                                      <rect x="2" y="2" width="156" height="86" fill="none" stroke="#dc2626" strokeWidth="1.5" />
+                                      <rect x="3" y="3" width="154" height="84" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
+                                      <rect x="8" y="8" width="144" height="74" fill="#ffffff" />
+                                      <line x1="70" y1="38" x2="90" y2="38" stroke="#0e7490" strokeWidth="1.8" />
+                                      <line x1="80" y1="28" x2="80" y2="48" stroke="#0e7490" strokeWidth="1.8" />
+                                      <text x="80" y="66" fill="#0e7490" fontSize="13" fontWeight="800" textAnchor="middle">FIX</text>
                                     </g>
                                   ) : (
                                     <>

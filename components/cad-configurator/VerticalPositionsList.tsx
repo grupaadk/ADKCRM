@@ -235,6 +235,25 @@ export function VerticalPositionsList({
                         <rect x="3" y="50" width="9" height="9" fill="#0f172a" stroke="#4ABBC3" strokeWidth="0.8" />
                         <rect x="108" y="50" width="9" height="9" fill="#0f172a" stroke="#4ABBC3" strokeWidth="0.8" />
                       </g>
+                    ) : !isTriangle && !isPergola && !isRoof && (/drzwi/i.test(item.name || "") || /drzwi/i.test(item.systemName || "")) ? (
+                      <g>
+                        <rect x="2" y="2" width="116" height="58" fill="none" stroke="#dc2626" strokeWidth="0.8" />
+                        <rect x="3" y="3" width="114" height="56" fill="#29323d" stroke="#1e242b" strokeWidth="0.8" />
+                        <rect x="6" y="6" width="108" height="50" fill="#ffffff" />
+                        <line x1="76.2" y1="6" x2="76.2" y2="56" stroke="#1e242b" strokeWidth="2.8" />
+                        <polyline points="8,8 74,31 8,54" fill="none" stroke="#0f172a" strokeWidth="1.5" />
+                        <rect x="70.5" y="26.5" width="2" height="9" rx="0.8" fill="#0f172a" />
+                        <polyline points="112,8 78.5,31 112,54" fill="none" stroke="#0f172a" strokeWidth="1.5" />
+                      </g>
+                    ) : !isTriangle && !isPergola && !isRoof && (/\bfix\b/i.test(item.name || "") || /\bfix\b/i.test(item.systemName || "")) ? (
+                      <g>
+                        <rect x="2" y="2" width="116" height="58" fill="none" stroke="#dc2626" strokeWidth="0.8" />
+                        <rect x="3" y="3" width="114" height="56" fill="#29323d" stroke="#1e242b" strokeWidth="0.8" />
+                        <rect x="6" y="6" width="108" height="50" fill="#ffffff" />
+                        <line x1="53" y1="26" x2="67" y2="26" stroke="#0e7490" strokeWidth="1.5" />
+                        <line x1="60" y1="19" x2="60" y2="33" stroke="#0e7490" strokeWidth="1.5" />
+                        <text x="60" y="47" fill="#0e7490" fontSize="10" fontWeight="800" textAnchor="middle">FIX</text>
+                      </g>
                     ) : (
                       <>
                         {/* Thin red perimeter */}
