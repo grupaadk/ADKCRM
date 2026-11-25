@@ -734,24 +734,25 @@ export function ConstructionsTab() {
                                     </g>
                                   ) : isDoubleDoor ? (
                                     <g>
-                                      <rect x="2" y="2" width="156" height="86" fill="none" stroke="#dc2626" strokeWidth="1.5" />
-                                      <rect x="3" y="3" width="154" height="84" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
-                                      <rect x="8" y="8" width="144" height="74" fill="#ffffff" />
+                                      {/* Wyśrodkowane proporcje pionowe drzwi (68×86 w viewBox 160×90) */}
+                                      <rect x="46" y="2" width="68" height="86" fill="none" stroke="#dc2626" strokeWidth="1.5" />
+                                      <rect x="47.5" y="3.5" width="65" height="83" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
+                                      <rect x="52" y="8" width="56" height="74" fill="#ffffff" />
                                       {/* Pionowy słupek przesunięty na 65% */}
-                                      <line x1="101.6" y1="8" x2="101.6" y2="82" stroke="#1e242b" strokeWidth="3.5" />
+                                      <line x1="88.4" y1="8" x2="88.4" y2="82" stroke="#1e242b" strokeWidth="3.2" />
                                       {/* Lewe szerokie skrzydło czynne (>) + klamka */}
-                                      <polyline points="10,10 99,45 10,80" fill="none" stroke="#0f172a" strokeWidth="1.8" />
-                                      <rect x="94" y="39" width="2.5" height="12" rx="1" fill="#0f172a" />
+                                      <polyline points="54,10 86,45 54,80" fill="none" stroke="#0f172a" strokeWidth="1.8" />
+                                      <rect x="82.5" y="39" width="2.4" height="12" rx="1" fill="#0f172a" />
                                       {/* Prawe wąskie skrzydło bierne (<) */}
-                                      <polyline points="150,10 104,45 150,80" fill="none" stroke="#0f172a" strokeWidth="1.8" />
+                                      <polyline points="106,10 91,45 106,80" fill="none" stroke="#0f172a" strokeWidth="1.8" />
                                     </g>
                                   ) : isFixedWindow ? (
                                     <g>
-                                      <rect x="2" y="2" width="156" height="86" fill="none" stroke="#dc2626" strokeWidth="1.5" />
-                                      <rect x="3" y="3" width="154" height="84" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
-                                      <rect x="8" y="8" width="144" height="74" fill="#ffffff" />
-                                      <line x1="70" y1="38" x2="90" y2="38" stroke="#0e7490" strokeWidth="1.8" />
-                                      <line x1="80" y1="28" x2="80" y2="48" stroke="#0e7490" strokeWidth="1.8" />
+                                      <rect x="52" y="2" width="56" height="86" fill="none" stroke="#dc2626" strokeWidth="1.5" />
+                                      <rect x="53.5" y="3.5" width="53" height="83" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
+                                      <rect x="58" y="8" width="44" height="74" fill="#ffffff" />
+                                      <line x1="72" y1="38" x2="88" y2="38" stroke="#0e7490" strokeWidth="1.8" />
+                                      <line x1="80" y1="30" x2="80" y2="46" stroke="#0e7490" strokeWidth="1.8" />
                                       <text x="80" y="66" fill="#0e7490" fontSize="13" fontWeight="800" textAnchor="middle">FIX</text>
                                     </g>
                                   ) : (

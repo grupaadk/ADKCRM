@@ -237,22 +237,22 @@ export function VerticalPositionsList({
                       </g>
                     ) : !isTriangle && !isPergola && !isRoof && (/drzwi/i.test(it.name || "") || /drzwi/i.test(it.systemName || "")) ? (
                       <g>
-                        <rect x="2" y="2" width="116" height="58" fill="none" stroke="#dc2626" strokeWidth="0.8" />
-                        <rect x="3" y="3" width="114" height="56" fill="#29323d" stroke="#1e242b" strokeWidth="0.8" />
-                        <rect x="6" y="6" width="108" height="50" fill="#ffffff" />
-                        <line x1="76.2" y1="6" x2="76.2" y2="56" stroke="#1e242b" strokeWidth="2.8" />
-                        <polyline points="8,8 74,31 8,54" fill="none" stroke="#0f172a" strokeWidth="1.5" />
-                        <rect x="70.5" y="26.5" width="2" height="9" rx="0.8" fill="#0f172a" />
-                        <polyline points="112,8 78.5,31 112,54" fill="none" stroke="#0f172a" strokeWidth="1.5" />
+                        <rect x="37" y="2" width="46" height="58" fill="none" stroke="#dc2626" strokeWidth="0.8" />
+                        <rect x="38" y="3" width="44" height="56" fill="#29323d" stroke="#1e242b" strokeWidth="0.8" />
+                        <rect x="41" y="6" width="38" height="50" fill="#ffffff" />
+                        <line x1="65.7" y1="6" x2="65.7" y2="56" stroke="#1e242b" strokeWidth="2.2" />
+                        <polyline points="42.5,7.5 64,31 42.5,54.5" fill="none" stroke="#0f172a" strokeWidth="1.3" />
+                        <rect x="61.5" y="26.5" width="1.8" height="9" rx="0.7" fill="#0f172a" />
+                        <polyline points="77.5,7.5 67.5,31 77.5,54.5" fill="none" stroke="#0f172a" strokeWidth="1.3" />
                       </g>
                     ) : !isTriangle && !isPergola && !isRoof && (/\bfix\b/i.test(it.name || "") || /\bfix\b/i.test(it.systemName || "")) ? (
                       <g>
-                        <rect x="2" y="2" width="116" height="58" fill="none" stroke="#dc2626" strokeWidth="0.8" />
-                        <rect x="3" y="3" width="114" height="56" fill="#29323d" stroke="#1e242b" strokeWidth="0.8" />
-                        <rect x="6" y="6" width="108" height="50" fill="#ffffff" />
-                        <line x1="53" y1="26" x2="67" y2="26" stroke="#0e7490" strokeWidth="1.5" />
-                        <line x1="60" y1="19" x2="60" y2="33" stroke="#0e7490" strokeWidth="1.5" />
-                        <text x="60" y="47" fill="#0e7490" fontSize="10" fontWeight="800" textAnchor="middle">FIX</text>
+                        <rect x="41" y="2" width="38" height="58" fill="none" stroke="#dc2626" strokeWidth="0.8" />
+                        <rect x="42" y="3" width="36" height="56" fill="#29323d" stroke="#1e242b" strokeWidth="0.8" />
+                        <rect x="45" y="6" width="30" height="50" fill="#ffffff" />
+                        <line x1="55" y1="26" x2="65" y2="26" stroke="#0e7490" strokeWidth="1.4" />
+                        <line x1="60" y1="21" x2="60" y2="31" stroke="#0e7490" strokeWidth="1.4" />
+                        <text x="60" y="46" fill="#0e7490" fontSize="9.5" fontWeight="800" textAnchor="middle">FIX</text>
                       </g>
                     ) : (
                       <>

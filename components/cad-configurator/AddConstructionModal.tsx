@@ -443,22 +443,22 @@ export function AddConstructionModal({
                         </g>
                       ) : isDoubleDoor ? (
                         <g>
-                          <rect x="2" y="2" width="136" height="66" fill="none" stroke="#dc2626" strokeWidth="1" />
-                          <rect x="3" y="3" width="134" height="64" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
-                          <rect x="7" y="7" width="126" height="56" fill="#ffffff" />
-                          <line x1="88.9" y1="7" x2="88.9" y2="63" stroke="#1e242b" strokeWidth="3" />
-                          <polyline points="9,9 86.5,35 9,61" fill="none" stroke="#0f172a" strokeWidth="1.6" />
-                          <rect x="82.5" y="30" width="2.2" height="10" rx="1" fill="#0f172a" />
-                          <polyline points="131,9 91.5,35 131,61" fill="none" stroke="#0f172a" strokeWidth="1.6" />
+                          <rect x="44" y="2" width="52" height="66" fill="none" stroke="#dc2626" strokeWidth="1" />
+                          <rect x="45" y="3" width="50" height="64" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
+                          <rect x="48.5" y="6.5" width="43" height="57" fill="#ffffff" />
+                          <line x1="76.5" y1="6.5" x2="76.5" y2="63.5" stroke="#1e242b" strokeWidth="2.5" />
+                          <polyline points="50,8 74.5,35 50,62" fill="none" stroke="#0f172a" strokeWidth="1.4" />
+                          <rect x="71.5" y="30" width="2" height="10" rx="0.8" fill="#0f172a" />
+                          <polyline points="90,8 78.5,35 90,62" fill="none" stroke="#0f172a" strokeWidth="1.4" />
                         </g>
                       ) : isFixedWindow ? (
                         <g>
-                          <rect x="2" y="2" width="136" height="66" fill="none" stroke="#dc2626" strokeWidth="1" />
-                          <rect x="3" y="3" width="134" height="64" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
-                          <rect x="7" y="7" width="126" height="56" fill="#ffffff" />
-                          <line x1="62" y1="30" x2="78" y2="30" stroke="#0e7490" strokeWidth="1.6" />
-                          <line x1="70" y1="22" x2="70" y2="38" stroke="#0e7490" strokeWidth="1.6" />
-                          <text x="70" y="53" fill="#0e7490" fontSize="11" fontWeight="800" textAnchor="middle">FIX</text>
+                          <rect x="48" y="2" width="44" height="66" fill="none" stroke="#dc2626" strokeWidth="1" />
+                          <rect x="49" y="3" width="42" height="64" fill="#29323d" stroke="#1e242b" strokeWidth="1" />
+                          <rect x="52.5" y="6.5" width="35" height="57" fill="#ffffff" />
+                          <line x1="64" y1="29" x2="76" y2="29" stroke="#0e7490" strokeWidth="1.5" />
+                          <line x1="70" y1="23" x2="70" y2="35" stroke="#0e7490" strokeWidth="1.5" />
+                          <text x="70" y="51" fill="#0e7490" fontSize="10" fontWeight="800" textAnchor="middle">FIX</text>
                         </g>
                       ) : (
                         <>
