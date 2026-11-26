@@ -673,7 +673,8 @@ function GoogleDriveTab() {
 
   const handleConnect = () => {
     const appUrl = encodeURIComponent(window.location.origin);
-    const authUrl = `${siteUrl}/api/google-drive/auth?appUrl=${appUrl}`;
+    const returnPath = encodeURIComponent("/admin/ustawienia");
+    const authUrl = `${siteUrl}/api/google-drive/auth?appUrl=${appUrl}&returnPath=${returnPath}`;
     window.open(authUrl, "_blank");
   };
 
@@ -848,6 +849,13 @@ function GoogleDriveTab() {
               className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               {refreshing ? "Odswiezanie..." : "Odnów token"}
+            </button>
+            <button
+              onClick={handleConnect}
+              className="inline-flex items-center gap-2 rounded-md border border-teal-300 bg-teal-50/70 px-4 py-2 text-sm font-medium text-teal-800 hover:bg-teal-100/70"
+              title="Przejdź ponownie autoryzację Google bez utraty konfiguracji folderów"
+            >
+              Odnów autoryzację
             </button>
             <button
               onClick={handleDisconnect}

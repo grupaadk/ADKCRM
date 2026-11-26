@@ -18,14 +18,19 @@ export const initiateOAuth = httpAction(async (_ctx, request) => {
     );
   }
 
-  // Extract userId from query params
+  // Extract userId, appUrl and optional returnPath from query params
   const url = new URL(request.url);
   const userId = url.searchParams.get("userId") ?? "unknown";
   const appUrl = url.searchParams.get("appUrl") ?? process.env.APP_URL ?? "";
+  const rawReturnPath = url.searchParams.get("returnPath") ?? "/admin/ustawienia";
+  const returnPath =
+    rawReturnPath.startsWith("/") && !rawReturnPath.startsWith("//")
+      ? rawReturnPath
+      : "/admin/ustawienia";
 
   const redirectUri = `${siteUrl}/api/google-drive/callback`;
 
-  const state = JSON.stringify({ userId, appUrl });
+  const state = JSON.stringify({ userId, appUrl, returnPath });
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -56,21 +61,34 @@ export const oauthCallback = httpAction(async (ctx, request) => {
 
   let userId = "unknown";
   let appUrl = process.env.APP_URL ?? "";
+  let returnPath = "/admin/ustawienia";
   if (stateParam) {
     try {
       const state = JSON.parse(stateParam);
       userId = state.userId ?? "unknown";
       if (state.appUrl) appUrl = state.appUrl;
+      if (
+        typeof state.returnPath === "string" &&
+        state.returnPath.startsWith("/") &&
+        !state.returnPath.startsWith("//")
+      ) {
+        returnPath = state.returnPath;
+      }
     } catch {
       // ignore parse errors
     }
   }
 
+  const buildRedirectUrl = (paramName: string, paramValue: string) => {
+    const separator = returnPath.includes("?") ? "&" : "?";
+    return `${appUrl}${returnPath}${separator}${paramName}=${encodeURIComponent(paramValue)}`;
+  };
+
   if (error) {
     return new Response(null, {
       status: 302,
       headers: {
-        Location: `${appUrl}/admin/ustawienia?error=${encodeURIComponent(error)}`,
+        Location: buildRedirectUrl("error", error),
       },
     });
   }
@@ -113,7 +131,7 @@ export const oauthCallback = httpAction(async (ctx, request) => {
     return new Response(null, {
       status: 302,
       headers: {
-        Location: `${appUrl}/admin/ustawienia?error=${encodeURIComponent("Token exchange failed")}`,
+        Location: buildRedirectUrl("error", "Token exchange failed"),
       },
     });
   }
@@ -136,9 +154,11 @@ export const oauthCallback = httpAction(async (ctx, request) => {
 
   const expiresAt = Date.now() + (tokens.expires_in ?? 3600) * 1000;
 
-  // Encrypt tokens before storing
+  // Encrypt tokens before storing (refresh_token may be omitted if Google reuses previous grant)
   const encryptedAccess = await encrypt(tokens.access_token);
-  const encryptedRefresh = await encrypt(tokens.refresh_token);
+  const encryptedRefresh = tokens.refresh_token
+    ? await encrypt(tokens.refresh_token)
+    : "";
 
   // Save the connection to the database
   await ctx.runMutation(api.googleDrive.saveConnection, {
@@ -149,11 +169,11 @@ export const oauthCallback = httpAction(async (ctx, request) => {
     connectedEmail,
   });
 
-  // Redirect back to the app settings page
+  // Redirect back to the originating page (or settings by default)
   return new Response(null, {
     status: 302,
     headers: {
-      Location: `${appUrl}/admin/ustawienia?drive=connected`,
+      Location: buildRedirectUrl("drive", "connected"),
     },
   });
 });
