@@ -9,6 +9,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { CadWorkspace } from "@/components/cad-configurator/CadWorkspace";
 import { fmtDate, fmtPLN } from "@/components/crm-ui";
 import ServiceIcon from "@/components/ServiceIcon";
+import toast from "react-hot-toast";
 import {
   Layers,
   Plus,
@@ -31,6 +32,7 @@ import {
   Building2,
   Briefcase,
   TableProperties,
+  Trash2,
 } from "lucide-react";
 
 type SortField =
@@ -117,6 +119,14 @@ function OfertaPageContent() {
 
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<SortDirection>("desc");
+  const [offerToDelete, setOfferToDelete] = useState<{
+    _id: Id<"offers">;
+    offerNumber: string;
+    clientName: string;
+    title: string;
+    itemsCount: number;
+  } | null>(null);
+  const [isDeletingOffer, setIsDeletingOffer] = useState(false);
 
   // Queries & Actions
   const offers = useQuery(api.offers.list, {
@@ -127,9 +137,25 @@ function OfertaPageContent() {
   const servicesList = useQuery(api.services.list, {}) ?? [];
   const getOrCreateForOpportunity = useMutation(api.offers.getOrCreateForOpportunity);
   const createOfferForOpportunity = useMutation(api.offers.createOfferForOpportunity);
+  const deleteOffer = useMutation(api.offers.deleteOffer);
   const createManualOpportunity = useMutation(api.salesOpportunities.createManualOpportunity);
   const createClient = useMutation(api.clients.create);
   const lookupNip = useAction(api.whitelist.lookupNip);
+
+  const handleConfirmDeleteOffer = async () => {
+    if (!offerToDelete) return;
+    setIsDeletingOffer(true);
+    try {
+      await deleteOffer({ offerId: offerToDelete._id });
+      toast.success(`Usunięto ofertę ${offerToDelete.offerNumber}.`);
+      setOfferToDelete(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Nie udało się usunąć oferty.";
+      toast.error(msg);
+    } finally {
+      setIsDeletingOffer(false);
+    }
+  };
 
   const handleNipLookup = async () => {
     const cleanNip = newOppNip.trim().replace(/[\s-]/g, "");
@@ -685,7 +711,7 @@ function OfertaPageContent() {
                       sortDir={sortDir}
                     />
                   </th>
-                  <th style={{ width: 150, textAlign: "right" }}>Akcja</th>
+                  <th style={{ width: 185, textAlign: "right" }}>Akcja</th>
                 </tr>
               </thead>
               <tbody>
@@ -781,12 +807,86 @@ function OfertaPageContent() {
                           <span>CAD</span>
                           <ArrowRight size={12} />
                         </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOfferToDelete({
+                              _id: o._id,
+                              offerNumber: o.offerNumber,
+                              clientName: o.clientName,
+                              title: o.title,
+                              itemsCount: o.itemsCount,
+                            });
+                          }}
+                          title="Usuń ofertę"
+                          className="btn ghost icon text-[#94a3b8] hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                          style={{ padding: "4px 6px" }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal potwierdzenia usunięcia oferty */}
+      {offerToDelete && (
+        <div
+          className="fixed inset-0 bg-[#0b1220]/45 backdrop-blur-2xs z-50 flex items-center justify-center p-4"
+          onClick={() => {
+            if (!isDeletingOffer) setOfferToDelete(null);
+          }}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-sm w-full border border-[#e3e7ee] p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-full bg-red-100 text-red-600 shrink-0">
+                <Trash2 size={18} />
+              </div>
+              <div className="space-y-1 min-w-0">
+                <h4 className="text-sm font-bold text-[#0b1220]">
+                  Usunąć ofertę {offerToDelete.offerNumber}?
+                </h4>
+                <p className="text-xs text-[#475569] font-medium truncate">
+                  {offerToDelete.clientName}
+                </p>
+                <p className="text-xs text-[#7c8597] leading-relaxed">
+                  Oferta wraz z pozycjami CAD ({offerToDelete.itemsCount}) i dodatkami zostanie trwale usunięta. Powiązana szansa sprzedaży pozostanie nienaruszona.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#f1f5f9]">
+              <button
+                type="button"
+                disabled={isDeletingOffer}
+                onClick={() => setOfferToDelete(null)}
+                className="px-3 py-1.5 rounded-md text-xs font-semibold text-[#4b5563] hover:text-[#0b1220] hover:bg-[#f3f5f8] transition-colors cursor-pointer"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingOffer}
+                onClick={handleConfirmDeleteOffer}
+                className="px-3.5 py-1.5 rounded-md text-xs font-semibold bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              >
+                {isDeletingOffer ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Trash2 size={13} />
+                )}
+                <span>{isDeletingOffer ? "Usuwanie..." : "Usuń ofertę"}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

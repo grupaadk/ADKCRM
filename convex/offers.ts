@@ -1525,6 +1525,38 @@ export const updateOffer = mutation({
 });
 
 /**
+ * Usuwa ofertę wraz z jej pozycjami CAD i dodatkami (szansa sprzedaży pozostaje nienaruszona)
+ */
+export const deleteOffer = mutation({
+  args: {
+    offerId: v.id("offers"),
+  },
+  handler: async (ctx, args) => {
+    const offer = await ctx.db.get(args.offerId);
+    if (!offer) return { deleted: false };
+
+    const items = await ctx.db
+      .query("offerConstructions")
+      .withIndex("by_offer", (q) => q.eq("offerId", args.offerId))
+      .collect();
+    for (const item of items) {
+      await ctx.db.delete(item._id);
+    }
+
+    const additions = await ctx.db
+      .query("offerAdditions")
+      .withIndex("by_offer", (q) => q.eq("offerId", args.offerId))
+      .collect();
+    for (const addition of additions) {
+      await ctx.db.delete(addition._id);
+    }
+
+    await ctx.db.delete(args.offerId);
+    return { deleted: true };
+  },
+});
+
+/**
  * Synchronizuje pozycje oferty z aktualnymi cenami i kosztami z bazy szablonów konstrukcji
  */
 export const syncOfferWithConstructionTemplates = mutation({

@@ -1484,4 +1484,71 @@ describe("CAD Offers and Constructions Module", () => {
       displayName: "Arek Marchewka",
     });
   });
+
+  test("deleteOffer removes offer, its CAD positions and additions while preserving opportunity and other variants", async () => {
+    const t = convexTest(schema);
+
+    const opportunityId = await t.run(async (ctx) => {
+      return await ctx.db.insert("pendingJotformSubmissions", {
+        submissionId: "SUB-DEL-OFFER-1",
+        firstName: "Anna",
+        lastName: "Nowak",
+        email: "anna@example.com",
+        processed: false,
+        stage: "lead",
+      });
+    });
+
+    const offerId1 = await t.mutation(api.offers.createOfferForOpportunity, {
+      opportunityId,
+      title: "Wariant 1",
+    });
+    const offerId2 = await t.mutation(api.offers.createOfferForOpportunity, {
+      opportunityId,
+      title: "Wariant 2",
+    });
+
+    await t.mutation(api.offers.addConstructionPosition, {
+      offerId: offerId1,
+      name: "System 3-torowy",
+      widthMm: 2900,
+      heightMm: 2300,
+      panesCount: 3,
+      priceNet: 4500,
+      costNet: 2500,
+    });
+    await t.mutation(api.offers.addOfferAddition, {
+      offerId: offerId1,
+      name: "Oświetlenie LED",
+      quantity: 1,
+      unit: "kpl.",
+      priceNet: 1200,
+    });
+
+    const delRes = await t.mutation(api.offers.deleteOffer, { offerId: offerId1 });
+    expect(delRes.deleted).toBe(true);
+
+    // Deleted offer and its child records are gone
+    const deletedOffer = await t.query(api.offers.getOfferWithItems, { offerId: offerId1 });
+    expect(deletedOffer).toBeNull();
+
+    const orphanCounts = await t.run(async (ctx) => {
+      const items = await ctx.db
+        .query("offerConstructions")
+        .withIndex("by_offer", (q) => q.eq("offerId", offerId1))
+        .collect();
+      const additions = await ctx.db
+        .query("offerAdditions")
+        .withIndex("by_offer", (q) => q.eq("offerId", offerId1))
+        .collect();
+      const opp = await ctx.db.get(opportunityId);
+      return { items: items.length, additions: additions.length, oppExists: Boolean(opp) };
+    });
+    expect(orphanCounts).toEqual({ items: 0, additions: 0, oppExists: true });
+
+    // Second variant remains untouched
+    const remainingOffers = await t.query(api.offers.listByOpportunity, { opportunityId });
+    expect(remainingOffers).toHaveLength(1);
+    expect(remainingOffers[0]._id).toBe(offerId2);
+  });
 });
