@@ -333,27 +333,16 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
                   </button>
                 )}
 
-                {me?.role === "admin" && (
-                  <div className="flex items-center justify-between gap-2 pt-0.5">
-                    {driveConnection ? (
-                      <button
-                        type="button"
-                        disabled={disconnectingDrive}
-                        onClick={() => void handleDisconnectDrive()}
-                        className="text-[11px] text-red-500 hover:text-red-700 disabled:opacity-50 cursor-pointer"
-                      >
-                        {disconnectingDrive ? "Rozłączanie…" : "Rozłącz"}
-                      </button>
-                    ) : (
-                      <span />
-                    )}
-                    <Link
-                      href="/admin/ustawienia"
-                      onClick={() => setOpen(false)}
-                      className="text-[11px] text-gray-400 hover:text-gray-700"
+                {me?.role === "admin" && driveConnection && (
+                  <div className="flex items-center justify-end pt-0.5">
+                    <button
+                      type="button"
+                      disabled={disconnectingDrive}
+                      onClick={() => void handleDisconnectDrive()}
+                      className="text-[11px] text-red-500 hover:text-red-700 disabled:opacity-50 cursor-pointer"
                     >
-                      Konfiguracja folderów →
-                    </Link>
+                      {disconnectingDrive ? "Rozłączanie…" : "Rozłącz"}
+                    </button>
                   </div>
                 )}
               </div>
