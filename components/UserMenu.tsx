@@ -50,11 +50,13 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
   const driveConnection = useQuery(api.googleDrive.getConnectionStatus);
   const setColor = useMutation(api.users.setColor);
   const refreshDriveToken = useAction(api.googleDrive.refreshAccessToken);
+  const disconnectDrive = useMutation(api.googleDrive.disconnect);
   const { signOut } = useAuthActions();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [refreshingDrive, setRefreshingDrive] = useState(false);
+  const [disconnectingDrive, setDisconnectingDrive] = useState(false);
   const [nowTs, setNowTs] = useState<number>(0);
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -87,6 +89,21 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
       toast.error(msg);
     } finally {
       setRefreshingDrive(false);
+    }
+  }
+
+  async function handleDisconnectDrive() {
+    if (!confirm("Czy na pewno chcesz rozłączyć Google Drive?")) return;
+    setDisconnectingDrive(true);
+    try {
+      await disconnectDrive();
+      toast.success("Google Drive został rozłączony.");
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Nie udało się rozłączyć Google Drive.";
+      toast.error(msg);
+    } finally {
+      setDisconnectingDrive(false);
     }
   }
 
@@ -317,13 +334,27 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
                 )}
 
                 {me?.role === "admin" && (
-                  <Link
-                    href="/admin/ustawienia"
-                    onClick={() => setOpen(false)}
-                    className="text-[11px] text-gray-400 hover:text-gray-700 text-right"
-                  >
-                    Ustawienia Dysku →
-                  </Link>
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    {driveConnection ? (
+                      <button
+                        type="button"
+                        disabled={disconnectingDrive}
+                        onClick={() => void handleDisconnectDrive()}
+                        className="text-[11px] text-red-500 hover:text-red-700 disabled:opacity-50 cursor-pointer"
+                      >
+                        {disconnectingDrive ? "Rozłączanie…" : "Rozłącz"}
+                      </button>
+                    ) : (
+                      <span />
+                    )}
+                    <Link
+                      href="/admin/ustawienia"
+                      onClick={() => setOpen(false)}
+                      className="text-[11px] text-gray-400 hover:text-gray-700"
+                    >
+                      Konfiguracja folderów →
+                    </Link>
+                  </div>
                 )}
               </div>
             )}

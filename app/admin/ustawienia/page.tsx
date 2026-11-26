@@ -245,18 +245,12 @@ function getDriveStatusMeta(status: string | undefined) {
 
 function GoogleDriveTab() {
   const connection = useQuery(api.googleDrive.getConnectionStatus);
-  const disconnect = useMutation(api.googleDrive.disconnect);
-  const healthCheck = useAction(api.googleDrive.healthCheck);
-  const refreshAccessToken = useAction(api.googleDrive.refreshAccessToken);
   const listDrives = useAction(api.googleDrive.listSharedDrives);
   const listFolders = useAction(api.googleDrive.listFolders);
   const saveSharedDriveConfig = useMutation(
     api.googleDrive.saveSharedDriveConfig,
   );
 
-  const [healthLoading, setHealthLoading] = useState(false);
-  const [healthResult, setHealthResult] = useState<string | null>(null);
-  const [disconnecting, setDisconnecting] = useState(false);
   const [drives, setDrives] = useState<Array<{
     id: string;
     name: string;
@@ -267,7 +261,6 @@ function GoogleDriveTab() {
     name: string;
   }> | null>(null);
   const [foldersLoading, setFoldersLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState<{
     type: "success" | "error";
     text: string;
@@ -606,8 +599,6 @@ function GoogleDriveTab() {
   const effectiveTemplateFolderId =
     templateFolderIdInput ?? connection?.templatesFolderId ?? "";
 
-  const driveStatus = getDriveStatusMeta(connection?.connectionStatus);
-
   const selectedDriveName = useMemo(
     () => drives?.find((drive) => drive.id === effectiveSharedDriveId)?.name,
     [drives, effectiveSharedDriveId],
@@ -619,41 +610,6 @@ function GoogleDriveTab() {
         ?.name,
     [templateFolders, effectiveTemplateFolderId],
   );
-
-  const handleHealthCheck = useCallback(async () => {
-    setHealthLoading(true);
-    setHealthResult(null);
-    setNotice(null);
-    try {
-      const result = await healthCheck();
-      setHealthResult(
-        result.status === "connected"
-          ? "Polaczenie dziala poprawnie"
-          : (result.error ?? `Status polaczenia: ${result.status}`),
-      );
-    } catch (error: unknown) {
-      setHealthResult(`Blad: ${getErrorMessage(error, "Nieznany blad")}`);
-    } finally {
-      setHealthLoading(false);
-    }
-  }, [healthCheck]);
-
-  const handleDisconnect = useCallback(async () => {
-    if (!confirm("Czy na pewno chcesz rozlaczyc Google Drive?")) return;
-    setDisconnecting(true);
-    setNotice(null);
-    try {
-      await disconnect();
-      setNotice({ type: "success", text: "Google Drive zostal rozlaczony." });
-    } catch (error: unknown) {
-      setNotice({
-        type: "error",
-        text: `Blad rozlaczania: ${getErrorMessage(error, "Nieznany blad")}`,
-      });
-    } finally {
-      setDisconnecting(false);
-    }
-  }, [disconnect]);
 
   const handleLoadDrives = useCallback(async () => {
     setDrivesLoading(true);
@@ -670,13 +626,6 @@ function GoogleDriveTab() {
       setDrivesLoading(false);
     }
   }, [listDrives]);
-
-  const handleConnect = () => {
-    const appUrl = encodeURIComponent(window.location.origin);
-    const returnPath = encodeURIComponent("/admin/ustawienia");
-    const authUrl = `${siteUrl}/api/google-drive/auth?appUrl=${appUrl}&returnPath=${returnPath}`;
-    window.open(authUrl, "_blank");
-  };
 
   const handleLoadTemplateFolders = useCallback(async () => {
     if (!connection?.sharedDriveId) return;
@@ -695,25 +644,6 @@ function GoogleDriveTab() {
       setFoldersLoading(false);
     }
   }, [connection?.sharedDriveId, listFolders]);
-
-  const handleRefreshToken = useCallback(async () => {
-    setRefreshing(true);
-    setNotice(null);
-    try {
-      await refreshAccessToken();
-      setNotice({
-        type: "success",
-        text: "Token Google Drive zostal odswiezony.",
-      });
-    } catch (error: unknown) {
-      setNotice({
-        type: "error",
-        text: `Blad odswiezania: ${getErrorMessage(error, "Nieznany blad")}`,
-      });
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refreshAccessToken]);
 
   const handleSaveSharedDrive = useCallback(async () => {
     if (!effectiveSharedDriveId.trim()) return;
@@ -767,37 +697,12 @@ function GoogleDriveTab() {
     return (
       <div className="bg-white rounded-lg border border-slate-200 p-8">
         <div className="text-center max-w-md mx-auto">
-          <div className="mb-4">
-            <svg
-              className="mx-auto h-16 w-16 text-slate-300"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-              />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">
-            Google Drive nie jest polaczony
+          <h3 className="text-base font-semibold text-slate-900 mb-2">
+            Google Drive nie jest połączony
           </h3>
-          <p className="text-sm text-slate-500 mb-6">
-            Polacz konto Google Drive, aby generowac dokumenty i przechowywac
-            pliki klientow automatycznie.
+          <p className="text-sm text-slate-500">
+            Połącz konto Google Drive w menu konta (prawy górny róg), aby skonfigurować Dysk współdzielony i folder szablonów.
           </p>
-          <button
-            onClick={handleConnect}
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12.545 10.239v3.821h5.445c-.712 2.315-2.647 3.972-5.445 3.972a6.033 6.033 0 110-12.064c1.498 0 2.866.549 3.921 1.453l2.814-2.814A9.969 9.969 0 0012.545 2C7.021 2 2.543 6.477 2.543 12s4.478 10 10.002 10c8.396 0 10.249-7.85 9.426-11.748l-9.426-.013z" />
-            </svg>
-            Polacz z Google Drive
-          </button>
         </div>
       </div>
     );
@@ -817,101 +722,6 @@ function GoogleDriveTab() {
           {notice.text}
         </div>
       )}
-
-      {/* Connection status card */}
-      <div className="bg-white rounded-lg border border-slate-200 p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-6">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <StatusDot status={connection.connectionStatus} />
-              <h3 className="text-base font-semibold text-slate-900">
-                {driveStatus.label}
-              </h3>
-            </div>
-            <div
-              className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${driveStatus.tone}`}
-            >
-              {driveStatus.hint}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={handleHealthCheck}
-              disabled={healthLoading}
-              className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              {healthLoading ? "Sprawdzanie..." : "Testuj polaczenie"}
-            </button>
-            <button
-              onClick={handleRefreshToken}
-              disabled={refreshing}
-              className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              {refreshing ? "Odswiezanie..." : "Odnów token"}
-            </button>
-            <button
-              onClick={handleConnect}
-              className="inline-flex items-center gap-2 rounded-md border border-teal-300 bg-teal-50/70 px-4 py-2 text-sm font-medium text-teal-800 hover:bg-teal-100/70"
-              title="Przejdź ponownie autoryzację Google bez utraty konfiguracji folderów"
-            >
-              Odnów autoryzację
-            </button>
-            <button
-              onClick={handleDisconnect}
-              disabled={disconnecting}
-              className="inline-flex items-center gap-2 rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-            >
-              {disconnecting ? "Rozlaczanie..." : "Rozlacz"}
-            </button>
-          </div>
-        </div>
-
-        <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
-          <div>
-            <dt className="text-slate-500">Email</dt>
-            <dd className="text-slate-900 font-medium mt-0.5">
-              {connection.connectedEmail}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Polaczony przez</dt>
-            <dd className="text-slate-900 font-medium mt-0.5 font-mono text-xs">
-              {connection.connectedBy}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Waznosc tokenu</dt>
-            <dd className="text-slate-900 font-medium mt-0.5">
-              {connection.expiresAt
-                ? formatRelativeTime(connection.expiresAt)
-                : "Brak danych"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Ostatni health check</dt>
-            <dd className="text-slate-900 font-medium mt-0.5">
-              {connection.lastCheckedAt
-                ? formatDateTime(connection.lastCheckedAt)
-                : "Nigdy"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Dysk wspoldzielony</dt>
-            <dd className="text-slate-900 font-medium mt-0.5 break-all">
-              {selectedDriveName ?? connection.sharedDriveId ?? "Nie wybrano"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Folder szablonow</dt>
-            <dd className="text-slate-900 font-medium mt-0.5 break-all">
-              {selectedTemplateFolderName ??
-                connection.templatesFolderId ??
-                "Nie skonfigurowano"}
-            </dd>
-          </div>
-        </dl>
-      </div>
 
       {/* Folder browser */}
       <div className="bg-white rounded-lg border border-slate-200 p-6">
