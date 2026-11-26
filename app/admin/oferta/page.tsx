@@ -127,6 +127,9 @@ function OfertaPageContent() {
     itemsCount: number;
   } | null>(null);
   const [isDeletingOffer, setIsDeletingOffer] = useState(false);
+  const [selectedOfferIds, setSelectedOfferIds] = useState<Set<Id<"offers">>>(new Set());
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Queries & Actions
   const offers = useQuery(api.offers.list, {
@@ -138,15 +141,32 @@ function OfertaPageContent() {
   const getOrCreateForOpportunity = useMutation(api.offers.getOrCreateForOpportunity);
   const createOfferForOpportunity = useMutation(api.offers.createOfferForOpportunity);
   const deleteOffer = useMutation(api.offers.deleteOffer);
+  const deleteOffers = useMutation(api.offers.deleteOffers);
   const createManualOpportunity = useMutation(api.salesOpportunities.createManualOpportunity);
   const createClient = useMutation(api.clients.create);
   const lookupNip = useAction(api.whitelist.lookupNip);
+
+  const formatOffersWord = (count: number) => {
+    if (count === 1) return "ofertę";
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+      return "oferty";
+    }
+    return "ofert";
+  };
 
   const handleConfirmDeleteOffer = async () => {
     if (!offerToDelete) return;
     setIsDeletingOffer(true);
     try {
       await deleteOffer({ offerId: offerToDelete._id });
+      setSelectedOfferIds((prev) => {
+        if (!prev.has(offerToDelete._id)) return prev;
+        const next = new Set(prev);
+        next.delete(offerToDelete._id);
+        return next;
+      });
       toast.success(`Usunięto ofertę ${offerToDelete.offerNumber}.`);
       setOfferToDelete(null);
     } catch (err: unknown) {
@@ -343,6 +363,76 @@ function OfertaPageContent() {
       return sortDir === "asc" ? res : -res;
     });
   }, [offers, sortField, sortDir]);
+
+  const selectedVisibleOffers = useMemo(
+    () => sortedOffers.filter((o) => selectedOfferIds.has(o._id)),
+    [sortedOffers, selectedOfferIds]
+  );
+
+  const selectedVisibleIds = useMemo(
+    () => selectedVisibleOffers.map((o) => o._id),
+    [selectedVisibleOffers]
+  );
+
+  const allVisibleSelected =
+    sortedOffers.length > 0 && selectedVisibleIds.length === sortedOffers.length;
+  const someVisibleSelected =
+    selectedVisibleIds.length > 0 && !allVisibleSelected;
+
+  const toggleSelectOffer = (offerId: Id<"offers">) => {
+    setSelectedOfferIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(offerId)) {
+        next.delete(offerId);
+      } else {
+        next.add(offerId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      setSelectedOfferIds((prev) => {
+        const next = new Set(prev);
+        for (const o of sortedOffers) {
+          next.delete(o._id);
+        }
+        return next;
+      });
+    } else {
+      setSelectedOfferIds((prev) => {
+        const next = new Set(prev);
+        for (const o of sortedOffers) {
+          next.add(o._id);
+        }
+        return next;
+      });
+    }
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    if (selectedVisibleIds.length === 0) return;
+    setIsBulkDeleting(true);
+    try {
+      const idsToDelete = [...selectedVisibleIds];
+      const res = await deleteOffers({ offerIds: idsToDelete });
+      setSelectedOfferIds((prev) => {
+        const next = new Set(prev);
+        for (const id of idsToDelete) {
+          next.delete(id);
+        }
+        return next;
+      });
+      setShowBulkDeleteModal(false);
+      toast.success(`Usunięto ${res.deletedCount} ${formatOffersWord(res.deletedCount)}.`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Nie udało się usunąć zaznaczonych ofert.";
+      toast.error(msg);
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
 
   // Tworzenie nowej oferty z modalnego wyboru szansy
   const handleCreateOfferForOpp = async (overrideOppId?: string, forceNew = false) => {
@@ -604,7 +694,29 @@ function OfertaPageContent() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
+          {selectedVisibleIds.length > 0 && (
+            <div className="flex items-center gap-2 bg-red-50/80 border border-red-200 rounded-md px-2.5 py-1">
+              <span className="text-xs font-medium text-red-900">
+                Zaznaczono: <strong>{selectedVisibleIds.length}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedOfferIds(new Set())}
+                className="text-[11px] font-medium text-[#64748b] hover:text-[#0b1220] px-1.5 py-0.5 rounded hover:bg-white/70 transition-colors cursor-pointer"
+              >
+                Odznacz
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteModal(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-red-600 hover:bg-red-700 text-white transition-colors shadow-2xs cursor-pointer"
+              >
+                <Trash2 size={12} />
+                <span>Usuń zaznaczone ({selectedVisibleIds.length})</span>
+              </button>
+            </div>
+          )}
           {offers && (
             <span className="text-xs font-medium text-[#7c8597]">
               Łącznie: <strong className="text-[#0b1220]">{sortedOffers.length}</strong>
@@ -645,6 +757,18 @@ function OfertaPageContent() {
             <table className="tbl">
               <thead>
                 <tr>
+                  <th style={{ width: 42, textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = someVisibleSelected;
+                      }}
+                      onChange={toggleSelectAllVisible}
+                      aria-label="Zaznacz wszystkie widoczne oferty"
+                      className="size-3.5 rounded border-[#cbd5e1] accent-[#0e7490] cursor-pointer align-middle"
+                    />
+                  </th>
                   <th
                     style={{ width: 140, cursor: "pointer" }}
                     onClick={() => handleSort("offerNumber")}
@@ -715,15 +839,31 @@ function OfertaPageContent() {
                 </tr>
               </thead>
               <tbody>
-                {sortedOffers.map((o) => (
+                {sortedOffers.map((o) => {
+                  const isSelected = selectedOfferIds.has(o._id);
+                  return (
                   <tr
                     key={o._id}
                     onClick={() => {
                       setActiveOfferId(o._id);
                       router.push(`/admin/oferta?offerId=${o._id}`);
                     }}
-                    className="cursor-pointer hover:bg-[#f8fafc] transition-colors group"
+                    className={`cursor-pointer transition-colors group ${
+                      isSelected ? "bg-[#f0fdfa] hover:bg-[#e6fffa]" : "hover:bg-[#f8fafc]"
+                    }`}
                   >
+                    <td
+                      style={{ textAlign: "center" }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectOffer(o._id)}
+                        aria-label={`Zaznacz ofertę ${o.offerNumber}`}
+                        className="size-3.5 rounded border-[#cbd5e1] accent-[#0e7490] cursor-pointer align-middle"
+                      />
+                    </td>
                     <td className="mono">
                       <span className="font-bold text-xs text-[#0e7490] bg-[rgba(74,187,195,0.12)] border border-[rgba(74,187,195,0.3)] px-2 py-0.5 rounded inline-block">
                         {o.offerNumber}
@@ -828,7 +968,8 @@ function OfertaPageContent() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -885,6 +1026,83 @@ function OfertaPageContent() {
                   <Trash2 size={13} />
                 )}
                 <span>{isDeletingOffer ? "Usuwanie..." : "Usuń ofertę"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal potwierdzenia zbiorczego usunięcia ofert */}
+      {showBulkDeleteModal && selectedVisibleOffers.length > 0 && (
+        <div
+          className="fixed inset-0 bg-[#0b1220]/45 backdrop-blur-2xs z-50 flex items-center justify-center p-4"
+          onClick={() => {
+            if (!isBulkDeleting) setShowBulkDeleteModal(false);
+          }}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-md w-full border border-[#e3e7ee] p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-full bg-red-100 text-red-600 shrink-0">
+                <Trash2 size={18} />
+              </div>
+              <div className="space-y-1.5 min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-[#0b1220]">
+                  Usunąć {selectedVisibleOffers.length} {formatOffersWord(selectedVisibleOffers.length)}?
+                </h4>
+                <p className="text-xs text-[#7c8597] leading-relaxed">
+                  Wszystkie zaznaczone oferty wraz z ich pozycjami CAD i dodatkami zostaną trwale usunięte. Powiązane szanse sprzedaży pozostaną nienaruszone.
+                </p>
+                <div className="mt-2 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg p-2.5 space-y-1 max-h-40 overflow-y-auto">
+                  {selectedVisibleOffers.slice(0, 6).map((o) => (
+                    <div
+                      key={o._id}
+                      className="flex items-center justify-between gap-2 text-xs"
+                    >
+                      <span className="font-mono font-semibold text-[#0e7490] shrink-0">
+                        {o.offerNumber}
+                      </span>
+                      <span className="text-[#475569] truncate">
+                        {o.clientName}
+                      </span>
+                    </div>
+                  ))}
+                  {selectedVisibleOffers.length > 6 && (
+                    <div className="text-[11px] text-[#7c8597] pt-0.5">
+                      … oraz {selectedVisibleOffers.length - 6} kolejnych
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#f1f5f9]">
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={() => setShowBulkDeleteModal(false)}
+                className="px-3 py-1.5 rounded-md text-xs font-semibold text-[#4b5563] hover:text-[#0b1220] hover:bg-[#f3f5f8] transition-colors cursor-pointer"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={handleConfirmBulkDelete}
+                className="px-3.5 py-1.5 rounded-md text-xs font-semibold bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              >
+                {isBulkDeleting ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Trash2 size={13} />
+                )}
+                <span>
+                  {isBulkDeleting
+                    ? "Usuwanie..."
+                    : `Usuń (${selectedVisibleOffers.length})`}
+                </span>
               </button>
             </div>
           </div>

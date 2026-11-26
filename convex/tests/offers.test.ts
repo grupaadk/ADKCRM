@@ -1551,4 +1551,76 @@ describe("CAD Offers and Constructions Module", () => {
     expect(remainingOffers).toHaveLength(1);
     expect(remainingOffers[0]._id).toBe(offerId2);
   });
+
+  test("deleteOffers bulk removes multiple offers and their children while preserving remaining offers and opportunity", async () => {
+    const t = convexTest(schema);
+
+    const opportunityId = await t.run(async (ctx) => {
+      return await ctx.db.insert("pendingJotformSubmissions", {
+        submissionId: "SUB-DEL-BULK-1",
+        firstName: "Jan",
+        lastName: "Kowalski",
+        email: "jan@example.com",
+        processed: false,
+        stage: "lead",
+      });
+    });
+
+    const offerId1 = await t.mutation(api.offers.createOfferForOpportunity, {
+      opportunityId,
+      title: "Wariant A",
+    });
+    const offerId2 = await t.mutation(api.offers.createOfferForOpportunity, {
+      opportunityId,
+      title: "Wariant B",
+    });
+    const offerId3 = await t.mutation(api.offers.createOfferForOpportunity, {
+      opportunityId,
+      title: "Wariant C",
+    });
+
+    await t.mutation(api.offers.addConstructionPosition, {
+      offerId: offerId1,
+      name: "System 3-torowy",
+      widthMm: 2900,
+      heightMm: 2300,
+      panesCount: 3,
+      priceNet: 4500,
+      costNet: 2500,
+    });
+    await t.mutation(api.offers.addOfferAddition, {
+      offerId: offerId2,
+      name: "Oświetlenie LED",
+      quantity: 1,
+      unit: "kpl.",
+      priceNet: 1200,
+    });
+
+    const res = await t.mutation(api.offers.deleteOffers, {
+      offerIds: [offerId1, offerId2, offerId1],
+    });
+    expect(res).toEqual({ deletedCount: 2 });
+
+    const remainingOffers = await t.query(api.offers.listByOpportunity, { opportunityId });
+    expect(remainingOffers).toHaveLength(1);
+    expect(remainingOffers[0]._id).toBe(offerId3);
+
+    const checks = await t.run(async (ctx) => {
+      const items1 = await ctx.db
+        .query("offerConstructions")
+        .withIndex("by_offer", (q) => q.eq("offerId", offerId1))
+        .collect();
+      const additions2 = await ctx.db
+        .query("offerAdditions")
+        .withIndex("by_offer", (q) => q.eq("offerId", offerId2))
+        .collect();
+      const opp = await ctx.db.get(opportunityId);
+      return {
+        items1: items1.length,
+        additions2: additions2.length,
+        oppExists: Boolean(opp),
+      };
+    });
+    expect(checks).toEqual({ items1: 0, additions2: 0, oppExists: true });
+  });
 });

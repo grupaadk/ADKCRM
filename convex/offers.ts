@@ -1524,6 +1524,30 @@ export const updateOffer = mutation({
   },
 });
 
+async function deleteOfferCascade(ctx: MutationCtx, offerId: Id<"offers">): Promise<boolean> {
+  const offer = await ctx.db.get(offerId);
+  if (!offer) return false;
+
+  const items = await ctx.db
+    .query("offerConstructions")
+    .withIndex("by_offer", (q) => q.eq("offerId", offerId))
+    .collect();
+  for (const item of items) {
+    await ctx.db.delete(item._id);
+  }
+
+  const additions = await ctx.db
+    .query("offerAdditions")
+    .withIndex("by_offer", (q) => q.eq("offerId", offerId))
+    .collect();
+  for (const addition of additions) {
+    await ctx.db.delete(addition._id);
+  }
+
+  await ctx.db.delete(offerId);
+  return true;
+}
+
 /**
  * Usuwa ofertę wraz z jej pozycjami CAD i dodatkami (szansa sprzedaży pozostaje nienaruszona)
  */
@@ -1532,27 +1556,26 @@ export const deleteOffer = mutation({
     offerId: v.id("offers"),
   },
   handler: async (ctx, args) => {
-    const offer = await ctx.db.get(args.offerId);
-    if (!offer) return { deleted: false };
+    const deleted = await deleteOfferCascade(ctx, args.offerId);
+    return { deleted };
+  },
+});
 
-    const items = await ctx.db
-      .query("offerConstructions")
-      .withIndex("by_offer", (q) => q.eq("offerId", args.offerId))
-      .collect();
-    for (const item of items) {
-      await ctx.db.delete(item._id);
+/**
+ * Usuwa wiele ofert jednocześnie wraz z ich pozycjami CAD i dodatkami (szanse sprzedaży pozostają nienaruszone)
+ */
+export const deleteOffers = mutation({
+  args: {
+    offerIds: v.array(v.id("offers")),
+  },
+  handler: async (ctx, args) => {
+    const uniqueIds = Array.from(new Set(args.offerIds));
+    let deletedCount = 0;
+    for (const offerId of uniqueIds) {
+      const deleted = await deleteOfferCascade(ctx, offerId);
+      if (deleted) deletedCount++;
     }
-
-    const additions = await ctx.db
-      .query("offerAdditions")
-      .withIndex("by_offer", (q) => q.eq("offerId", args.offerId))
-      .collect();
-    for (const addition of additions) {
-      await ctx.db.delete(addition._id);
-    }
-
-    await ctx.db.delete(args.offerId);
-    return { deleted: true };
+    return { deletedCount };
   },
 });
 
