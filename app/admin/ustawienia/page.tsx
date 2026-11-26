@@ -245,12 +245,15 @@ function getDriveStatusMeta(status: string | undefined) {
 
 function GoogleDriveTab() {
   const connection = useQuery(api.googleDrive.getConnectionStatus);
+  const healthCheck = useAction(api.googleDrive.healthCheck);
   const listDrives = useAction(api.googleDrive.listSharedDrives);
   const listFolders = useAction(api.googleDrive.listFolders);
   const saveSharedDriveConfig = useMutation(
     api.googleDrive.saveSharedDriveConfig,
   );
 
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthResult, setHealthResult] = useState<string | null>(null);
   const [drives, setDrives] = useState<Array<{
     id: string;
     name: string;
@@ -610,6 +613,24 @@ function GoogleDriveTab() {
         ?.name,
     [templateFolders, effectiveTemplateFolderId],
   );
+
+  const handleHealthCheck = useCallback(async () => {
+    setHealthLoading(true);
+    setHealthResult(null);
+    setNotice(null);
+    try {
+      const result = await healthCheck();
+      setHealthResult(
+        result.status === "connected"
+          ? "Polaczenie dziala poprawnie"
+          : (result.error ?? `Status polaczenia: ${result.status}`),
+      );
+    } catch (error: unknown) {
+      setHealthResult(`Blad: ${getErrorMessage(error, "Nieznany blad")}`);
+    } finally {
+      setHealthLoading(false);
+    }
+  }, [healthCheck]);
 
   const handleLoadDrives = useCallback(async () => {
     setDrivesLoading(true);
