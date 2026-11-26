@@ -35,11 +35,10 @@ export default function ComplaintPhotoSection({
   const uploadFile = useAction(api.googleDrive.uploadManualOrderFile);
   const listFolderContents = useAction(api.googleDrive.listOrderFolderContents);
   const deleteFile = useAction(api.googleDrive.deleteFile);
-  const requestComplaintFolderCreation = useMutation(api.complaints.requestComplaintFolderCreation);
+  const createComplaintFolder = useAction(api.googleDrive.createComplaintFolderManual);
 
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [createFolderError, setCreateFolderError] = useState<string | null>(null);
-  const [folderCreated, setFolderCreated] = useState(false);
 
   const [items, setItems] = useState<DriveItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -229,15 +228,14 @@ export default function ComplaintPhotoSection({
               setCreatingFolder(true);
               setCreateFolderError(null);
               try {
-                await requestComplaintFolderCreation({ complaintId, orderId, clientId });
-                setFolderCreated(true);
+                await createComplaintFolder({ complaintId, orderId, clientId });
               } catch (err) {
-                setCreateFolderError(err instanceof Error ? err.message : "Błąd");
+                setCreateFolderError(err instanceof Error ? err.message : "Błąd tworzenia folderu");
               } finally {
                 setCreatingFolder(false);
               }
             }}
-            disabled={creatingFolder || folderCreated}
+            disabled={creatingFolder}
             style={{
               background: creatingFolder ? "#fcd34d" : "#f59e0b",
               color: "#fff",
@@ -253,9 +251,6 @@ export default function ComplaintPhotoSection({
           </button>
           {createFolderError && (
             <p style={{ margin: "8px 0 0", color: "#dc2626" }}>{createFolderError}</p>
-          )}
-          {folderCreated && (
-            <p style={{ margin: "8px 0 0", color: "#15803d" }}>Folder został utworzony. Odśwież stronę aby zobaczyć zmiany.</p>
           )}
         </div>
       ) : (

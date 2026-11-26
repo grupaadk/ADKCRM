@@ -173,13 +173,11 @@ export const create = mutation({
       todos: [],
       createdBy: args.createdBy,
     });
-    if (args.clientId) {
-      await ctx.scheduler.runAfter(0, internal.googleDrive.createComplaintFolder, {
-        complaintId,
-        orderId: args.orderId,
-        clientId: args.clientId,
-      });
-    }
+    await ctx.scheduler.runAfter(0, internal.googleDrive.createComplaintFolder, {
+      complaintId,
+      orderId: args.orderId,
+      clientId: args.clientId,
+    });
     return complaintId;
   },
 });
@@ -239,7 +237,6 @@ export const requestComplaintFolderCreation = mutation({
     clientId: v.optional(v.id("clients")),
   },
   handler: async (ctx, args) => {
-    if (!args.clientId) return;
     await ctx.scheduler.runAfter(0, internal.googleDrive.createComplaintFolder, {
       complaintId: args.complaintId,
       orderId: args.orderId,
