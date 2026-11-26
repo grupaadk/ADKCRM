@@ -3,20 +3,38 @@
 import { useState, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 
 type Props = {
+  trip?: {
+    _id: Id<"serviceTrips">;
+    name: string;
+    date: number;
+  };
   onClose: () => void;
   onCreated?: () => void;
 };
 
-export default function NewServiceTripModal({ onClose, onCreated }: Props) {
+function toDateInputValue(ts: number) {
+  const d = new Date(ts);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export default function NewServiceTripModal({ trip, onClose, onCreated }: Props) {
+  const isEditing = Boolean(trip);
   const [visible, setVisible] = useState(false);
-  const [name, setName] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [name, setName] = useState(() => trip?.name ?? "");
+  const [date, setDate] = useState(() =>
+    trip ? toDateInputValue(trip.date) : new Date().toISOString().slice(0, 10)
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const createTrip = useMutation(api.serviceTrips.create);
+  const updateTrip = useMutation(api.serviceTrips.update);
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setVisible(true));
@@ -38,7 +56,12 @@ export default function NewServiceTripModal({ onClose, onCreated }: Props) {
     setSaving(true);
     setError(null);
     try {
-      await createTrip({ name: name.trim(), date: new Date(date).getTime() });
+      const timestamp = new Date(date).getTime();
+      if (trip) {
+        await updateTrip({ tripId: trip._id, name: name.trim(), date: timestamp });
+      } else {
+        await createTrip({ name: name.trim(), date: timestamp });
+      }
       onCreated?.();
       onClose();
     } catch (e) {
@@ -81,10 +104,12 @@ export default function NewServiceTripModal({ onClose, onCreated }: Props) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text-strong)" }}>
-              Nowy wyjazd serwisowy
+              {isEditing ? "Edytuj wyjazd serwisowy" : "Nowy wyjazd serwisowy"}
             </h2>
             <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-mute)" }}>
-              Utwórz wyjazd i przypisuj do niego reklamacje
+              {isEditing
+                ? "Zmień nazwę lub datę wyjazdu"
+                : "Utwórz wyjazd i przypisuj do niego reklamacje"}
             </p>
           </div>
           <button
@@ -178,7 +203,13 @@ export default function NewServiceTripModal({ onClose, onCreated }: Props) {
             className="btn primary"
             style={{ fontSize: 12.5, padding: "7px 18px" }}
           >
-            {saving ? "Tworzenie…" : "Utwórz wyjazd"}
+            {saving
+              ? isEditing
+                ? "Zapisywanie…"
+                : "Tworzenie…"
+              : isEditing
+                ? "Zapisz zmiany"
+                : "Utwórz wyjazd"}
           </button>
         </div>
       </div>

@@ -84,4 +84,53 @@ describe("ServiceTrips module", () => {
     const updatedC1 = await tUser.query(api.complaints.getById, { complaintId: c1Id });
     expect(updatedC1?.status).toBe("archiwalne");
   });
+
+  test("updates service trip name and date for both open and closed trips and rejects empty name", async () => {
+    const t = convexTest(schema, modules);
+
+    const adminId = await t.run(async (ctx) => {
+      return await ctx.db.insert("users", {
+        email: "wojtek@example.com",
+        displayName: "Wojtek",
+        role: "admin",
+        isActive: true,
+      });
+    });
+
+    const tUser = t.withIdentity({ subject: adminId });
+    const initialDate = Date.UTC(2026, 9, 22);
+    const updatedDate = Date.UTC(2026, 9, 29);
+
+    const tripId = await tUser.mutation(api.serviceTrips.create, {
+      name: "SRERWIS",
+      date: initialDate,
+    });
+
+    // Rename open trip and update date
+    await tUser.mutation(api.serviceTrips.update, {
+      tripId,
+      name: "  SERWIS — tydzień 44  ",
+      date: updatedDate,
+    });
+
+    const renamedOpen = await tUser.query(api.serviceTrips.getWithComplaints, { tripId });
+    expect(renamedOpen?.name).toBe("SERWIS — tydzień 44");
+    expect(renamedOpen?.date).toBe(updatedDate);
+
+    // Reject blank name
+    await expect(
+      tUser.mutation(api.serviceTrips.update, { tripId, name: "   " }),
+    ).rejects.toThrow("Nazwa wyjazdu nie może być pusta.");
+
+    // Close trip and verify rename still works on closed trips
+    await tUser.mutation(api.serviceTrips.close, { tripId });
+    await tUser.mutation(api.serviceTrips.update, {
+      tripId,
+      name: "SERWIS — archiwum",
+    });
+
+    const renamedClosed = await tUser.query(api.serviceTrips.getWithComplaints, { tripId });
+    expect(renamedClosed?.status).toBe("closed");
+    expect(renamedClosed?.name).toBe("SERWIS — archiwum");
+  });
 });

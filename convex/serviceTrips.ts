@@ -101,7 +101,7 @@ export const create = mutation({
   },
 });
 
-/** Aktualizacja wyjazdu */
+/** Aktualizacja nazwy i/lub daty wyjazdu */
 export const update = mutation({
   args: {
     tripId: v.id("serviceTrips"),
@@ -109,8 +109,15 @@ export const update = mutation({
     date: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const patch: Record<string, unknown> = {};
-    if (args.name !== undefined) patch.name = args.name.trim();
+    const trip = await ctx.db.get(args.tripId);
+    if (!trip) throw new Error("Wyjazd nie istnieje.");
+
+    const patch: { name?: string; date?: number } = {};
+    if (args.name !== undefined) {
+      const trimmed = args.name.trim();
+      if (!trimmed) throw new Error("Nazwa wyjazdu nie może być pusta.");
+      patch.name = trimmed;
+    }
     if (args.date !== undefined) patch.date = args.date;
     await ctx.db.patch(args.tripId, patch);
   },

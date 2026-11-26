@@ -4,7 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Plus, Calendar, Package, ChevronRight, GripVertical, X, Lock, AlertTriangle } from "lucide-react";
+import { Plus, Calendar, Package, ChevronRight, GripVertical, X, Lock, AlertTriangle, Pencil } from "lucide-react";
 import NewServiceTripModal from "./NewServiceTripModal";
 
 function formatDate(ts: number) {
@@ -115,6 +115,7 @@ type Trip = {
 
 export default function ServiceTripsView() {
   const [showNewModal, setShowNewModal] = useState(false);
+  const [editingTrip, setEditingTrip] = useState<Pick<Trip, "_id" | "name" | "date"> | null>(null);
   const [selectedTripId, setSelectedTripId] = useState<Id<"serviceTrips"> | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
   const [dragOverTrip, setDragOverTrip] = useState(false);
@@ -247,6 +248,7 @@ export default function ServiceTripsView() {
               trip={trip}
               selected={selectedTripId === trip._id}
               onClick={() => setSelectedTripId(trip._id)}
+              onEdit={() => setEditingTrip({ _id: trip._id, name: trip.name, date: trip.date })}
             />
           ))}
 
@@ -261,6 +263,7 @@ export default function ServiceTripsView() {
                   trip={trip}
                   selected={selectedTripId === trip._id}
                   onClick={() => setSelectedTripId(trip._id)}
+                  onEdit={() => setEditingTrip({ _id: trip._id, name: trip.name, date: trip.date })}
                 />
               ))}
             </>
@@ -298,10 +301,36 @@ export default function ServiceTripsView() {
               flexShrink: 0,
             }}>
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text-strong)" }}>
                     {tripDetail.name}
                   </h2>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingTrip({
+                        _id: tripDetail._id,
+                        name: tripDetail.name,
+                        date: tripDetail.date,
+                      })
+                    }
+                    title="Zmień nazwę lub datę wyjazdu"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 4,
+                      borderRadius: 6,
+                      border: "1px solid transparent",
+                      background: "transparent",
+                      color: "var(--text-mute)",
+                      cursor: "pointer",
+                      transition: "all 0.15s",
+                    }}
+                    className="hover:bg-[var(--panel-3)] hover:text-[var(--text-strong)]"
+                  >
+                    <Pencil size={13} />
+                  </button>
                   <span style={{
                     fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 12,
                     background: tripDetail.status === "open" ? "var(--accent-soft)" : "var(--panel-3)",
@@ -549,16 +578,44 @@ export default function ServiceTripsView() {
           onCreated={() => setShowNewModal(false)}
         />
       )}
+
+      {/* Edit trip modal */}
+      {editingTrip && (
+        <NewServiceTripModal
+          trip={editingTrip}
+          onClose={() => setEditingTrip(null)}
+          onCreated={() => setEditingTrip(null)}
+        />
+      )}
     </div>
   );
 }
 
 // ─── Trip list item ────────────────────────────────────────────────────────
 
-function TripListItem({ trip, selected, onClick }: { trip: Trip; selected: boolean; onClick: () => void }) {
+function TripListItem({
+  trip,
+  selected,
+  onClick,
+  onEdit,
+}: {
+  trip: Trip;
+  selected: boolean;
+  onClick: () => void;
+  onEdit: () => void;
+}) {
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className="group"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -572,18 +629,45 @@ function TripListItem({ trip, selected, onClick }: { trip: Trip; selected: boole
         gap: 3,
         transition: "background 0.15s",
         opacity: trip.status === "closed" ? 0.65 : 1,
+        boxSizing: "border-box",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: selected ? "var(--accent)" : "var(--text-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
           {trip.name}
         </span>
-        {trip.status === "closed" && <Lock size={11} style={{ color: "var(--text-mute)", flexShrink: 0 }} />}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            title="Zmień nazwę wyjazdu"
+            aria-label={`Zmień nazwę wyjazdu ${trip.name}`}
+            className="opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-black/5 hover:text-[var(--text-strong)]"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 3,
+              borderRadius: 5,
+              border: "none",
+              background: "transparent",
+              color: "var(--text-mute)",
+              cursor: "pointer",
+              transition: "opacity 0.15s, background 0.15s",
+            }}
+          >
+            <Pencil size={11} />
+          </button>
+          {trip.status === "closed" && <Lock size={11} style={{ color: "var(--text-mute)", flexShrink: 0 }} />}
+        </div>
       </div>
       <div style={{ fontSize: 11, color: "var(--text-mute)", display: "flex", gap: 8, alignItems: "center" }}>
         <span><Calendar size={10} style={{ display: "inline", verticalAlign: "middle", marginRight: 3 }} />{formatDate(trip.date)}</span>
         <span>{trip.complaintCount} rek.</span>
       </div>
-    </button>
+    </div>
   );
 }
