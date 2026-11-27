@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
 import { expect, test, describe } from "vitest";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import schema from "../schema";
 
 type TestRuntime = ReturnType<typeof convexTest>;
@@ -261,6 +261,66 @@ describe("Deduplication", () => {
     expect(popular.length).toBeGreaterThanOrEqual(2);
     expect(popular[0]._id).toBe(client1);
     expect(popular[0].usageCount).toBe(1);
+  });
+
+  test("client folder lock prevents concurrent creation and clears on update or release", async () => {
+    const t = convexTest(schema);
+    const { asUser } = await setupAuthContext(t);
+
+    const clientId = await asUser.mutation(api.clients.create, {
+      firstName: "Jan",
+      lastName: "Kowalski",
+    });
+
+    // First caller acquires the lock
+    const first = await t.mutation(internal.clients.tryAcquireClientFolderLock, {
+      clientId,
+    });
+    expect(first.status).toBe("acquired");
+    if (first.status !== "acquired") throw new Error("Expected acquired");
+    expect(first.clientFolderName).toBe("Kowalski_Jan");
+
+    // Second concurrent caller sees locked
+    const second = await t.mutation(internal.clients.tryAcquireClientFolderLock, {
+      clientId,
+    });
+    expect(second.status).toBe("locked");
+
+    // Releasing with wrong token does not release the lock
+    await t.mutation(internal.clients.releaseClientFolderLock, {
+      clientId,
+      lockUntil: first.lockUntil - 1,
+    });
+    const stillLocked = await t.mutation(internal.clients.tryAcquireClientFolderLock, {
+      clientId,
+    });
+    expect(stillLocked.status).toBe("locked");
+
+    // Releasing with matching token allows re-acquiring
+    await t.mutation(internal.clients.releaseClientFolderLock, {
+      clientId,
+      lockUntil: first.lockUntil,
+    });
+    const reacquired = await t.mutation(internal.clients.tryAcquireClientFolderLock, {
+      clientId,
+    });
+    expect(reacquired.status).toBe("acquired");
+
+    // Saving folder clears lock and subsequent attempts return already_exists
+    await t.mutation(api.clients.updateClientFolder, {
+      clientId,
+      clientFolderId: "drive-folder-123",
+      clientFolderUrl: "https://drive.google.com/drive/folders/drive-folder-123",
+    });
+
+    const afterSave = await t.mutation(internal.clients.tryAcquireClientFolderLock, {
+      clientId,
+    });
+    expect(afterSave).toEqual({
+      status: "already_exists",
+      clientFolderId: "drive-folder-123",
+      clientFolderUrl: "https://drive.google.com/drive/folders/drive-folder-123",
+    });
   });
 });
 

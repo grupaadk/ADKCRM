@@ -97,13 +97,13 @@ export const Sidebar = React.forwardRef<HTMLDivElement, React.ComponentProps<"di
     if (isMobile) {
       return (
         <Drawer open={openMobile} onOpenChange={setOpenMobile}>
-          <DrawerContent className="bg-white p-0 text-gray-900">
+          <DrawerContent className="border-slate-800 bg-slate-900 p-0 text-slate-100">
             <VisuallyHidden.Root>
               <DrawerTitle>Navigation</DrawerTitle>
             </VisuallyHidden.Root>
             <div className="relative flex h-full w-full flex-col">
               <DrawerClose className="absolute right-4 top-4" asChild>
-                <Button variant="ghost" className="!p-2 text-gray-700 hover:text-gray-900">
+                <Button variant="ghost" className="!p-2 text-slate-400 hover:bg-slate-800 hover:text-white">
                   <RiCloseLine className="size-5 shrink-0" aria-hidden="true" />
                 </Button>
               </DrawerClose>
@@ -128,7 +128,7 @@ export const Sidebar = React.forwardRef<HTMLDivElement, React.ComponentProps<"di
         }}
         className={cx(
           "hidden md:flex flex-col shrink-0 h-svh sticky top-0",
-          "border-r border-gray-200 bg-white",
+          "border-r border-slate-800 bg-slate-900 text-slate-100",
           className,
         )}
         {...props}

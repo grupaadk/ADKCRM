@@ -164,6 +164,7 @@ export default defineSchema({
     // Folder klienta (główny folder w Google Drive)
     clientFolderId: v.optional(v.string()),
     clientFolderUrl: v.optional(v.string()),
+    clientFolderLockUntil: v.optional(v.number()),
 
     // Pola legacy (zachowane dla danych istniejących, nieużywane przez nowy kod)
     address: v.optional(v.string()),

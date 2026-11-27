@@ -708,6 +708,153 @@ async function createDriveFolder(
   };
 }
 
+async function findOrCreateDriveFolderWithCtx(
+  ctx: ActionCtx,
+  name: string,
+  parentId: string,
+): Promise<{ id: string; url: string; reused: boolean }> {
+  const escapedName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const q = `name='${escapedName}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+  const searchParams = new URLSearchParams({
+    q,
+    corpora: "allDrives",
+    supportsAllDrives: "true",
+    includeItemsFromAllDrives: "true",
+    fields: "files(id)",
+    pageSize: "1",
+  });
+
+  const searchData = (await driveApiFetchWithRetry(
+    ctx,
+    `/files?${searchParams.toString()}`,
+  )) as unknown as { files?: Array<{ id?: string }> };
+
+  const existingId = searchData.files?.[0]?.id;
+  if (existingId) {
+    return {
+      id: existingId,
+      url: `https://drive.google.com/drive/folders/${existingId}`,
+      reused: true,
+    };
+  }
+
+  const created = await createDriveFolder(ctx, name, parentId);
+  return { ...created, reused: false };
+}
+
+const CLIENT_FOLDER_LOCK_WAIT_MS = 500;
+const CLIENT_FOLDER_LOCK_MAX_ATTEMPTS = 30;
+
+async function ensureClientDriveFolder(
+  ctx: ActionCtx,
+  params: {
+    clientId: Id<"clients">;
+    parentFolderId: string;
+    log?: (
+      level: "info" | "warn" | "error",
+      message: string,
+      data?: Record<string, unknown>,
+    ) => Promise<void>;
+  },
+): Promise<{ clientFolderId: string; clientFolderUrl: string; created: boolean }> {
+  const { clientId, parentFolderId, log } = params;
+
+  for (let attempt = 0; attempt < CLIENT_FOLDER_LOCK_MAX_ATTEMPTS; attempt++) {
+    const lockResult = await ctx.runMutation(
+      internal.clients.tryAcquireClientFolderLock,
+      { clientId },
+    );
+
+    if (lockResult.status === "not_found") {
+      throw new Error("Client not found");
+    }
+
+    if (lockResult.status === "already_exists") {
+      if (log) {
+        await log("info", "client folder exists — reusing", {
+          clientFolderId: lockResult.clientFolderId,
+        });
+      }
+      return {
+        clientFolderId: lockResult.clientFolderId,
+        clientFolderUrl: lockResult.clientFolderUrl,
+        created: false,
+      };
+    }
+
+    if (lockResult.status === "locked") {
+      if (attempt === 0 && log) {
+        await log("info", "client folder creation in progress — waiting for lock", {
+          clientId,
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, CLIENT_FOLDER_LOCK_WAIT_MS));
+      continue;
+    }
+
+    try {
+      if (log) {
+        await log("info", "finding or creating client Drive folder", {
+          clientFolderName: lockResult.clientFolderName,
+          parentId: parentFolderId,
+        });
+      }
+      const { id, url, reused } = await findOrCreateDriveFolderWithCtx(
+        ctx,
+        lockResult.clientFolderName,
+        parentFolderId,
+      );
+      await ctx.runMutation(api.clients.updateClientFolder, {
+        clientId,
+        clientFolderId: id,
+        clientFolderUrl: url,
+      });
+      if (log) {
+        await log(
+          "info",
+          reused
+            ? "existing Drive folder linked to client"
+            : "Drive folder created OK",
+          { folderId: id, clientFolderUrl: url },
+        );
+      }
+      return {
+        clientFolderId: id,
+        clientFolderUrl: url,
+        created: !reused,
+      };
+    } catch (err) {
+      try {
+        await ctx.runMutation(internal.clients.releaseClientFolderLock, {
+          clientId,
+          lockUntil: lockResult.lockUntil,
+        });
+      } catch (releaseErr) {
+        console.error(
+          "[ensureClientDriveFolder] releaseClientFolderLock failed",
+          releaseErr,
+        );
+      }
+      throw err;
+    }
+  }
+
+  const client = await ctx.runQuery(api.clients.getById, { clientId });
+  if (client?.clientFolderId) {
+    return {
+      clientFolderId: client.clientFolderId,
+      clientFolderUrl:
+        client.clientFolderUrl ??
+        `https://drive.google.com/drive/folders/${client.clientFolderId}`,
+      created: false,
+    };
+  }
+
+  throw new Error(
+    `Timeout waiting for client folder creation lock for client ${clientId}`,
+  );
+}
+
 async function renameDriveFolder(
   ctx: ActionCtx,
   folderId: string,
@@ -965,16 +1112,20 @@ export const saveConnection = mutation({
   handler: async (ctx, args) => {
     let oldSharedDriveId: string | undefined;
     let oldTemplatesFolderId: string | undefined;
+    let oldRefreshToken: string | undefined;
     const existing = await ctx.db.query("driveConnection").first();
     if (existing) {
       oldSharedDriveId = existing.sharedDriveId;
       oldTemplatesFolderId = existing.templatesFolderId;
+      oldRefreshToken = existing.refreshToken;
       await ctx.db.delete(existing._id);
     }
 
+    const effectiveRefreshToken = args.refreshToken || oldRefreshToken || "";
+
     const id = await ctx.db.insert("driveConnection", {
       accessToken: args.accessToken,
-      refreshToken: args.refreshToken,
+      refreshToken: effectiveRefreshToken,
       expiresAt: args.expiresAt,
       connectedBy: args.connectedBy,
       connectedEmail: args.connectedEmail,
@@ -1157,48 +1308,37 @@ export const createClientFolderForOpportunity = action({
 
       // Krok 1: Znajdź lub utwórz folder klienta
       let clientFolderId = opp.clientFolderId;
+      const clientsFolderId = connection.sharedDriveId || CLIENTS_FOLDER_ID;
 
       if (!clientFolderId && opp.clientId) {
-        const client = await ctx.runQuery(api.clients.getById, { clientId: opp.clientId });
-        clientFolderId = client?.clientFolderId ?? undefined;
-        if (clientFolderId) {
-          await log("info", "using existing client folder from client record", { clientFolderId });
-        }
+        const ensured = await ensureClientDriveFolder(ctx, {
+          clientId: opp.clientId,
+          parentFolderId: clientsFolderId,
+          log,
+        });
+        clientFolderId = ensured.clientFolderId;
+        await ctx.runMutation(internal.salesOpportunities.updateClientFolder, {
+          opportunityId: args.opportunityId,
+          clientFolderId: ensured.clientFolderId,
+          clientFolderUrl: ensured.clientFolderUrl,
+        });
       }
 
       if (!clientFolderId) {
-        let clientFolderName: string;
-        if (opp.clientId) {
-          const client = await ctx.runQuery(api.clients.getById, { clientId: opp.clientId });
-          clientFolderName = client?.clientType === "business" && client.companyName
-            ? client.companyName
-            : `${opp.lastName}_${opp.firstName}`;
-        } else {
-          clientFolderName = `${opp.lastName}_${opp.firstName}`;
-        }
-
-        const clientsFolderId = connection.sharedDriveId || CLIENTS_FOLDER_ID;
+        const clientFolderName = `${opp.lastName}_${opp.firstName}`;
         await log("info", "creating client folder", { clientFolderName, parentId: clientsFolderId });
-        clientFolderId = await findOrCreateDriveFolder(
-          connection.accessToken,
+        const { id, url: clientFolderUrl } = await findOrCreateDriveFolderWithCtx(
+          ctx,
           clientFolderName,
           clientsFolderId,
         );
-        const clientFolderUrl = `https://drive.google.com/drive/folders/${clientFolderId}`;
+        clientFolderId = id;
 
         await ctx.runMutation(internal.salesOpportunities.updateClientFolder, {
           opportunityId: args.opportunityId,
           clientFolderId,
           clientFolderUrl,
         });
-
-        if (opp.clientId) {
-          await ctx.runMutation(api.clients.updateClientFolder, {
-            clientId: opp.clientId,
-            clientFolderId,
-            clientFolderUrl,
-          });
-        }
       }
 
       // Krok 2: Utwórz/znajdź podfolder "Szanse sprzedaży" w folderze klienta
@@ -1360,29 +1500,13 @@ export const createOrderFolder = action({
       const connection = await getAuthorizedConnection(ctx);
       await log("info", "connection OK", { connectedEmail: connection.connectedEmail });
 
-      // Krok 1: Znajdź lub utwórz folder klienta w shared drive
-      let clientFolderId = client.clientFolderId;
-      if (!clientFolderId) {
-        const clientFolderName = client.clientType === "business" && client.companyName
-          ? client.companyName
-          : `${client.lastName}_${client.firstName}`;
-        const clientsFolderId = connection.sharedDriveId || CLIENTS_FOLDER_ID;
-        await log("info", "creating client folder", { clientFolderName, parentId: clientsFolderId });
-        const { id, url: clientFolderUrl } = await createDriveFolder(
-          ctx,
-          clientFolderName,
-          clientsFolderId,
-        );
-        clientFolderId = id;
-        await ctx.runMutation(api.clients.updateClientFolder, {
-          clientId: order.clientId,
-          clientFolderId: id,
-          clientFolderUrl,
-        });
-        await log("info", "client folder created", { clientFolderId: id });
-      } else {
-        await log("info", "client folder exists — reusing", { clientFolderId });
-      }
+      // Krok 1: Znajdź lub utwórz folder klienta w shared drive (z atomową blokadą)
+      const clientsFolderId = connection.sharedDriveId || CLIENTS_FOLDER_ID;
+      const { clientFolderId } = await ensureClientDriveFolder(ctx, {
+        clientId: order.clientId,
+        parentFolderId: clientsFolderId,
+        log,
+      });
 
       // Krok 2: Znajdź lub utwórz podfolder "Zlecenia" w folderze klienta
       await log("info", "finding or creating Zlecenia subfolder", { parentId: clientFolderId });
@@ -1613,39 +1737,18 @@ export const createClientFolder = action({
         return null;
       }
 
-      const client = await ctx.runQuery(api.clients.getById, { clientId: args.clientId }) as Doc<"clients"> | null;
-      await log("info", "client fetched", {
-        found: !!client,
-        existingFolderId: client?.clientFolderId ?? null,
-      });
+      const clientsFolderId =
+        ((connection as Record<string, unknown>).sharedDriveId as string | undefined) ||
+        CLIENTS_FOLDER_ID;
 
-      if (!client) {
-        await log("error", "Client not found");
-        throw new Error("Client not found");
-      }
-
-      if (client.clientFolderId) {
-        await log("info", "folder already exists — pomijam", { folderId: client.clientFolderId });
-        return { clientFolderId: client.clientFolderId, clientFolderUrl: client.clientFolderUrl ?? "" };
-      }
-
-      const clientFolderName = client.clientType === "business" && client.companyName
-        ? client.companyName
-        : `${client.lastName}_${client.firstName}`;
-      const clientsFolderId = (connection as Record<string, unknown>).sharedDriveId as string | undefined || CLIENTS_FOLDER_ID;
-      await log("info", "creating Drive folder", { clientFolderName, parentId: clientsFolderId });
-
-      const { id, url: clientFolderUrl } = await createDriveFolder(ctx, clientFolderName, clientsFolderId);
-      await log("info", "Drive folder created OK", { folderId: id, clientFolderUrl });
-
-      await ctx.runMutation(api.clients.updateClientFolder, {
+      const { clientFolderId, clientFolderUrl } = await ensureClientDriveFolder(ctx, {
         clientId: args.clientId,
-        clientFolderId: id,
-        clientFolderUrl,
+        parentFolderId: clientsFolderId,
+        log,
       });
 
-      await log("info", "DONE — folder zapisany w rekordzie klienta", { folderId: id });
-      return { clientFolderId: id, clientFolderUrl };
+      await log("info", "DONE — folder klienta gotowy", { folderId: clientFolderId });
+      return { clientFolderId, clientFolderUrl };
     } catch (err) {
       await log("error", "NIEOCZEKIWANY BŁĄD", { error: String(err) });
       throw err;
@@ -1889,6 +1992,7 @@ async function findOrCreateDriveFolder(
   const q = `name='${name.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
   const searchParams = new URLSearchParams({
     q,
+    corpora: "allDrives",
     supportsAllDrives: "true",
     includeItemsFromAllDrives: "true",
     fields: "files(id)",
@@ -1897,11 +2001,13 @@ async function findOrCreateDriveFolder(
   const searchRes = await fetch(`${DRIVE_API_BASE}/files?${searchParams.toString()}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (searchRes.ok) {
-    const data = await searchRes.json() as { files?: DriveItem[] };
-    if (data.files && data.files.length > 0 && data.files[0].id) {
-      return data.files[0].id;
-    }
+  if (!searchRes.ok) {
+    const errorBody = await searchRes.text();
+    throw new Error(`Nie udało się wyszukać folderu Drive: ${errorBody}`);
+  }
+  const data = await searchRes.json() as { files?: DriveItem[] };
+  if (data.files && data.files.length > 0 && data.files[0].id) {
+    return data.files[0].id;
   }
   const createRes = await fetch(`${DRIVE_API_BASE}/files?supportsAllDrives=true`, {
     method: "POST",
@@ -5669,17 +5775,12 @@ async function createComplaintFolderImpl(
     if (client) {
       let clientFolderId = client.clientFolderId ?? client.folderId;
       if (!clientFolderId) {
-        const clientFolderName =
-          client.clientType === "business" && client.companyName
-            ? client.companyName
-            : `${client.lastName}_${client.firstName}`;
-        const created = await createDriveFolder(ctx, clientFolderName, CLIENTS_FOLDER_ID);
-        clientFolderId = created.id;
-        await ctx.runMutation(api.clients.updateClientFolder, {
+        const clientsFolderId = connection.sharedDriveId || CLIENTS_FOLDER_ID;
+        const ensured = await ensureClientDriveFolder(ctx, {
           clientId: resolvedClientId,
-          clientFolderId: created.id,
-          clientFolderUrl: created.url,
+          parentFolderId: clientsFolderId,
         });
+        clientFolderId = ensured.clientFolderId;
       }
       parentFolderId = clientFolderId;
     }

@@ -106,7 +106,7 @@ function NavSection({
     <SidebarGroup className="py-0">
       {!collapsed && (
         <div className="px-3 pb-1 pt-4">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
             {label}
           </span>
         </div>
@@ -129,8 +129,8 @@ function NavSection({
                       ? "justify-center p-2.5"
                       : "justify-between px-2.5 py-[7px] text-[12.5px]",
                     "border-l-2 border-transparent",
-                    "text-gray-600 hover:bg-gray-100/80 hover:text-gray-900",
-                    "data-[active=true]:border-brand data-[active=true]:bg-[var(--accent-soft)] data-[active=true]:font-medium data-[active=true]:text-brand",
+                    "text-slate-300 hover:bg-slate-800/80 hover:text-white",
+                    "data-[active=true]:border-brand data-[active=true]:bg-brand/15 data-[active=true]:font-medium data-[active=true]:text-brand",
                     focusRing,
                   )}
                 >
@@ -148,7 +148,7 @@ function NavSection({
                             "inline-flex min-w-[1.25rem] items-center justify-center rounded px-1.5 text-[10px] font-semibold",
                             active
                               ? "bg-brand text-white"
-                              : "bg-gray-100 text-gray-500",
+                              : "bg-slate-800 text-slate-400",
                           )}
                         >
                           {count}
@@ -195,15 +195,15 @@ export function AdminSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b border-gray-200 px-3 py-3.5">
+      <SidebarHeader className="border-b border-slate-800 px-3 py-3.5">
         <div className={cx("flex items-center", collapsed ? "justify-center" : "gap-3")}>
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand shadow-sm">
             <span className="text-[13px] font-bold text-white">A</span>
           </span>
           {!collapsed && (
             <div>
-              <span className="block text-[13px] font-semibold text-gray-900">ADK</span>
-              <span className="block text-[10.5px] text-gray-500">Panel zarządzania</span>
+              <span className="block text-[13px] font-semibold text-white">ADK</span>
+              <span className="block text-[10.5px] text-slate-400">Panel zarządzania</span>
             </div>
           )}
         </div>
@@ -214,7 +214,7 @@ export function AdminSidebar() {
           <button
             onClick={() => setIsSearchOpen(true)}
             className={cx(
-              "flex w-full items-center gap-2 rounded-md border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:border-brand hover:text-brand",
+              "flex w-full items-center gap-2 rounded-md border border-slate-700/80 bg-slate-800/80 text-slate-400 shadow-sm transition-colors hover:border-brand/70 hover:bg-slate-800 hover:text-slate-100",
               collapsed ? "justify-center px-0 py-1.5" : "px-3 py-1.5 text-sm"
             )}
             title="Szukaj (Cmd+K)"
@@ -223,7 +223,7 @@ export function AdminSidebar() {
             {!collapsed && (
               <span className="flex flex-1 items-center justify-between">
                 Szukaj...
-                <kbd className="hidden rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] sm:inline-block">⌘K</kbd>
+                <kbd className="hidden rounded bg-slate-700/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-300 sm:inline-block">⌘K</kbd>
               </span>
             )}
           </button>
@@ -236,12 +236,12 @@ export function AdminSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-gray-200 py-3">
+      <SidebarFooter className="border-t border-slate-800 py-3">
         <div className={cx("flex items-center px-1", collapsed ? "justify-center flex-col gap-3" : "gap-3 justify-between")}>
           {!collapsed && (
             <div className="flex items-center gap-3">
               <UserMenu />
-              <span className="text-[12px] text-gray-600">Moje konto</span>
+              <span className="text-[12px] text-slate-300">Moje konto</span>
             </div>
           )}
           {collapsed && (
@@ -251,7 +251,7 @@ export function AdminSidebar() {
             onClick={toggleSidebar}
             title={collapsed ? "Rozwiń nawigację" : "Zwiń nawigację"}
             className={cx(
-              "flex items-center justify-center rounded-md p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900",
+              "flex items-center justify-center rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white",
               focusRing,
             )}
           >

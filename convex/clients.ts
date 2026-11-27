@@ -297,6 +297,72 @@ export const findByContactInfo = query({
   },
 });
 
+const CLIENT_FOLDER_LOCK_TTL_MS = 60_000;
+
+// Atomowe zajęcie blokady tworzenia folderu klienta w Google Drive (zapobiega duplikatom przy równoległych akcjach)
+export const tryAcquireClientFolderLock = internalMutation({
+  args: {
+    clientId: v.id("clients"),
+  },
+  handler: async (ctx, args) => {
+    const client = await ctx.db.get(args.clientId);
+    if (!client) {
+      return { status: "not_found" as const };
+    }
+
+    if (client.clientFolderId) {
+      return {
+        status: "already_exists" as const,
+        clientFolderId: client.clientFolderId,
+        clientFolderUrl:
+          client.clientFolderUrl ??
+          `https://drive.google.com/drive/folders/${client.clientFolderId}`,
+      };
+    }
+
+    const now = Date.now();
+    if (client.clientFolderLockUntil && client.clientFolderLockUntil > now) {
+      return { status: "locked" as const };
+    }
+
+    const lockUntil = now + CLIENT_FOLDER_LOCK_TTL_MS;
+    await ctx.db.patch(args.clientId, {
+      clientFolderLockUntil: lockUntil,
+    });
+
+    const clientFolderName =
+      client.clientType === "business" && client.companyName
+        ? client.companyName
+        : `${client.lastName}_${client.firstName}`;
+
+    return {
+      status: "acquired" as const,
+      clientFolderName,
+      lockUntil,
+    };
+  },
+});
+
+export const releaseClientFolderLock = internalMutation({
+  args: {
+    clientId: v.id("clients"),
+    lockUntil: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const client = await ctx.db.get(args.clientId);
+    if (!client) return;
+    if (
+      args.lockUntil !== undefined &&
+      client.clientFolderLockUntil !== args.lockUntil
+    ) {
+      return;
+    }
+    await ctx.db.patch(args.clientId, {
+      clientFolderLockUntil: undefined,
+    });
+  },
+});
+
 // Aktualizacja folderu klienta w Google Drive
 export const updateClientFolder = mutation({
   args: {
@@ -308,6 +374,7 @@ export const updateClientFolder = mutation({
     await ctx.db.patch(args.clientId, {
       clientFolderId: args.clientFolderId,
       clientFolderUrl: args.clientFolderUrl,
+      clientFolderLockUntil: undefined,
     });
   },
 });

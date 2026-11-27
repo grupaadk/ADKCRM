@@ -272,13 +272,7 @@ export const promoteToMeasurement = mutation({
       (driveConnection.connectionStatus === "connected" ||
         driveConnection.connectionStatus === "token_expiring")
     ) {
-      // Triggeruj tworzenie folderu klienta (idempotentne — pomija jeśli istnieje)
-      await ctx.scheduler.runAfter(
-        0,
-        api.googleDrive.createClientFolder,
-        { clientId },
-      );
-      // Triggeruj tworzenie folderu zlecenia
+      // Triggeruj tworzenie folderu zlecenia (wewnętrznie atomowo tworzy/re-używa folder klienta)
       await ctx.scheduler.runAfter(
         0,
         api.googleDrive.createOrderFolder,
@@ -344,13 +338,7 @@ export const repairPendingSubmission = mutation({
       (driveConnection.connectionStatus === "connected" ||
         driveConnection.connectionStatus === "token_expiring")
     ) {
-      // Triggeruj tworzenie folderu klienta (idempotentne — pomija jeśli istnieje)
-      await ctx.scheduler.runAfter(
-        0,
-        api.googleDrive.createClientFolder,
-        { clientId },
-      );
-      // Triggeruj tworzenie folderu zlecenia
+      // Triggeruj tworzenie folderu zlecenia (wewnętrznie atomowo tworzy/re-używa folder klienta)
       await ctx.scheduler.runAfter(
         0,
         api.googleDrive.createOrderFolder,
