@@ -60,12 +60,13 @@ export async function nextOrderNumber(ctx: MutationCtx): Promise<string> {
   let maxN = 0;
   for (const o of ordersThisMonth) {
     if (!o.name?.endsWith(suffix)) continue;
-    const n = parseInt(o.name.split("/")[0], 10);
+    const prefixPart = o.name.split("/")[0].replace(/^ZAM_/, "");
+    const n = parseInt(prefixPart, 10);
     if (Number.isFinite(n) && n > maxN) maxN = n;
   }
 
   const number = maxN + 1;
-  return `${number}/${mm}/${year}`;
+  return `ZAM_${number}/${mm}/${year}`;
 }
 
 export const DEFAULT_DOCUMENTS = {
