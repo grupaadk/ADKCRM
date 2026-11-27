@@ -364,13 +364,19 @@ function validateClientForFakturownia(client: Doc<"clients">): void {
 
 // ─── Number conflict check ───────────────────────────────────────────────────
 
+export function formatFakturowniaOrderNumber(orderName?: string): string | undefined {
+  const trimmed = orderName?.trim();
+  if (!trimmed) return undefined;
+  return trimmed.startsWith("ZAM_") ? trimmed : `ZAM_${trimmed}`;
+}
+
 export const checkOrderNumberConflict = query({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
     const order = await ctx.db.get(args.orderId);
-    if (!order?.name) return { conflict: false };
+    const orderNumber = formatFakturowniaOrderNumber(order?.name);
+    if (!orderNumber) return { conflict: false };
 
-    const orderNumber = order.name;
     const currentOid = `adkokna-${args.orderId}`;
 
     // Check if another order already sent an estimate with the same number
@@ -437,7 +443,8 @@ export const pushOrderEstimate = action({
       : `${client.firstName} ${client.lastName}`.trim();
     const street = buyerStreet(client);
 
-    const orderLabel = order.name ?? oid;
+    const fakturowniaNumber = formatFakturowniaOrderNumber(order.name);
+    const orderLabel = fakturowniaNumber ?? oid;
 
     const positions = items.map((item: { name: string; description?: string; quantity: number; unitPrice: number; vatRate: number; unit: string; discountPercent?: number }) => {
       const namePart = item.description
@@ -470,7 +477,7 @@ export const pushOrderEstimate = action({
       buyer_company: isBusinessClient ? "1" : (client.nip ? "1" : "0"),
       ...(client.nip ? { buyer_tax_no: client.nip } : {}),
       oid,
-      ...(order.name ? { number: order.name } : {}),
+      ...(fakturowniaNumber ? { number: fakturowniaNumber } : {}),
       description: `Dotyczy: ${orderLabel}`,
       positions,
       lang: "pl",

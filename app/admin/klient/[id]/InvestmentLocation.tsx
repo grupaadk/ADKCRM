@@ -34,6 +34,8 @@ export default function InvestmentLocation({
 }: Props) {
   const updateOrder = useMutation(api.orders.update);
   const [editing, setEditing] = useState(false);
+  const [resolvingAddress, setResolvingAddress] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [street, setStreet] = useState(investmentStreet ?? "");
   const [building, setBuilding] = useState(investmentBuildingNumber ?? "");
@@ -41,7 +43,7 @@ export default function InvestmentLocation({
   const [postal, setPostal] = useState(investmentPostalCode ?? "");
   const [city, setCity] = useState(investmentCity ?? "");
 
-  const popoverRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   function handleEdit() {
     setStreet(investmentStreet ?? "");
@@ -57,29 +59,37 @@ export default function InvestmentLocation({
   }
 
   async function handleSave() {
-    await updateOrder({
-      orderId,
-      investmentStreet: street,
-      investmentBuildingNumber: building,
-      investmentApartmentNumber: apartment,
-      investmentPostalCode: postal,
-      investmentCity: city,
-    });
-    setEditing(false);
+    if (resolvingAddress || saving) return;
+    setSaving(true);
+    try {
+      await updateOrder({
+        orderId,
+        investmentStreet: street.trim(),
+        investmentBuildingNumber: building.trim(),
+        investmentApartmentNumber: apartment.trim(),
+        investmentPostalCode: postal.trim(),
+        investmentCity: city.trim(),
+      });
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleAddressSelect(address: AddressData) {
-    if (address.street) setStreet(address.street);
-    if (address.buildingNumber) setBuilding(address.buildingNumber);
-    if (address.postalCode) setPostal(address.postalCode);
-    if (address.city) setCity(address.city);
+    setStreet(address.street ?? "");
+    setBuilding(address.buildingNumber ?? "");
+    setPostal(address.postalCode ?? "");
+    setCity(address.city ?? "");
   }
 
-  // Close popover on click outside
+  // Close popover on click outside (ignore nodes detached during autocomplete selection)
   useEffect(() => {
     if (!editing) return;
     function handleClickOutside(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+      const target = e.target as Node | null;
+      if (!target || !document.contains(target)) return;
+      if (containerRef.current && !containerRef.current.contains(target)) {
         setEditing(false);
       }
     }
@@ -137,7 +147,7 @@ export default function InvestmentLocation({
 
   // ── Widok adresu (pigułka) + popover edycji ──
   return (
-    <div style={{ position: "relative", display: "inline-flex" }}>
+    <div ref={containerRef} style={{ position: "relative", display: "inline-flex" }}>
       {/* Pill view — always visible */}
       <div
         style={{
@@ -256,7 +266,6 @@ export default function InvestmentLocation({
       {/* Popover edit form — floats above/below the pill */}
       {editing && (
         <div
-          ref={popoverRef}
           style={{
             position: "absolute",
             top: "calc(100% + 6px)",
@@ -325,7 +334,7 @@ export default function InvestmentLocation({
             </button>
           </div>
 
-          <AddressSearch onSelect={handleAddressSelect} />
+          <AddressSearch onSelect={handleAddressSelect} onLoadingChange={setResolvingAddress} />
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 70px", gap: 6 }}>
             <input value={street} onChange={(e) => setStreet(e.target.value)} placeholder="Ulica" style={inputStyle} />
@@ -342,8 +351,13 @@ export default function InvestmentLocation({
             <button onClick={handleCancel} className="btn" style={{ fontSize: 11, padding: "5px 12px" }}>
               Anuluj
             </button>
-            <button onClick={() => void handleSave()} className="btn primary" style={{ fontSize: 11, padding: "5px 14px" }}>
-              Zapisz
+            <button
+              onClick={() => void handleSave()}
+              disabled={resolvingAddress || saving}
+              className="btn primary"
+              style={{ fontSize: 11, padding: "5px 14px" }}
+            >
+              {resolvingAddress ? "Pobieranie..." : saving ? "Zapisywanie..." : "Zapisz"}
             </button>
           </div>
         </div>

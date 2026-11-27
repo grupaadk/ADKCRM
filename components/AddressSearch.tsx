@@ -18,10 +18,11 @@ interface Suggestion {
 
 interface AddressSearchProps {
   onSelect: (address: AddressData) => void;
+  onLoadingChange?: (loading: boolean) => void;
   className?: string;
 }
 
-export default function AddressSearch({ onSelect, className }: AddressSearchProps) {
+export default function AddressSearch({ onSelect, onLoadingChange, className }: AddressSearchProps) {
   const [inputValue, setInputValue] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,10 +33,15 @@ export default function AddressSearch({ onSelect, className }: AddressSearchProp
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onSelectRef = useRef(onSelect);
+  const onLoadingChangeRef = useRef(onLoadingChange);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+
+  useEffect(() => {
+    onLoadingChangeRef.current = onLoadingChange;
+  }, [onLoadingChange]);
 
   const handleInput = useCallback(
     (value: string) => {
@@ -64,12 +70,19 @@ export default function AddressSearch({ onSelect, className }: AddressSearchProp
     (suggestion: Suggestion) => {
       setOpen(false);
       setSuggestions([]);
-      setInputValue("");
+      setInputValue(suggestion.text);
       setLoading(true);
+      onLoadingChangeRef.current?.(true);
       getPlaceDetails({ placeId: suggestion.placeId })
-        .then((details) => onSelectRef.current(details))
+        .then((details) => {
+          onSelectRef.current(details);
+          setInputValue("");
+        })
         .catch(() => {})
-        .finally(() => setLoading(false));
+        .finally(() => {
+          setLoading(false);
+          onLoadingChangeRef.current?.(false);
+        });
     },
     [getPlaceDetails]
   );
@@ -135,7 +148,11 @@ export default function AddressSearch({ onSelect, className }: AddressSearchProp
             <li key={s.placeId} className="border-t border-slate-100 first:border-t-0">
               <button
                 type="button"
-                onMouseDown={() => handleSelect(s)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSelect(s);
+                }}
                 className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50"
               >
                 <svg
