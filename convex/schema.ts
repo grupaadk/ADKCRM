@@ -140,6 +140,7 @@ export default defineSchema({
     color: v.optional(v.string()),
     showInPickers: v.optional(v.boolean()),
     vacationDaysAllowance: v.optional(v.number()),
+    collapsedPanelColumns: v.optional(v.array(v.string())),
   })
     .index("email", ["email"])
     .index("phone", ["phone"]),

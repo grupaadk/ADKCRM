@@ -8,7 +8,7 @@ import { api } from "@/convex/_generated/api"
 import { useStatusLabels, useStatuses } from "@/components/StatusLabelsContext"
 import { deriveStatusStyle } from "@/lib/statuses"
 import type { KanbanItem } from "@/convex/kanban"
-import { Plus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Archive, ArchiveRestore, Search, X, ClipboardList, Users, AlertTriangle, Package } from "lucide-react"
+import { Plus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Archive, ArchiveRestore, Search, X, ClipboardList, Users, AlertTriangle, Package } from "lucide-react"
 import NewOrderModal from "@/app/admin/klient/[id]/NewOrderModal"
 import { calculateOrderRating } from "@/lib/rating"
 
@@ -840,6 +840,28 @@ export default function PanelPage() {
   const deleteOrder = useAction(api.orders.deleteOrder)
   const deletePending = useMutation(api.jotformInternal.deletePending)
   const archiveOpportunity = useMutation(api.salesOpportunities.archiveOpportunity)
+  const setCollapsedPanelColumns = useMutation(api.users.setCollapsedPanelColumns)
+
+  const [optimisticCollapsed, setOptimisticCollapsed] = useState<string[] | null>(null)
+  const collapsedColumns = useMemo(
+    () => new Set(optimisticCollapsed ?? currentUser?.collapsedPanelColumns ?? []),
+    [optimisticCollapsed, currentUser?.collapsedPanelColumns],
+  )
+
+  const persistCollapsedColumns = (nextSet: Set<string>) => {
+    const nextArr = Array.from(nextSet)
+    setOptimisticCollapsed(nextArr)
+    void setCollapsedPanelColumns({ columns: nextArr })
+      .then(() => setOptimisticCollapsed(null))
+      .catch(() => setOptimisticCollapsed(null))
+  }
+
+  const toggleColumnCollapse = (colKey: string) => {
+    const next = new Set(collapsedColumns)
+    if (next.has(colKey)) next.delete(colKey)
+    else next.add(colKey)
+    persistCollapsedColumns(next)
+  }
 
   const topScrollRef = useRef<HTMLDivElement>(null)
   const bottomScrollRef = useRef<HTMLDivElement>(null)
@@ -881,7 +903,7 @@ export default function PanelPage() {
       ro.disconnect()
       window.removeEventListener("resize", checkScroll)
     }
-  }, [activeTab, items, expandedCards])
+  }, [activeTab, items, expandedCards, collapsedColumns])
 
   const runScrollLoop = () => {
     const el = bottomScrollRef.current
@@ -927,12 +949,24 @@ export default function PanelPage() {
 
   const newLeadsCount = (items ?? []).filter((i) => i.status === "lead").length
 
+  const collapsedVisibleCount = visibleColumns.filter((c) => collapsedColumns.has(c.key)).length
+
+  const expandAllVisibleColumns = () => {
+    const visibleKeys = new Set(visibleColumns.map((c) => c.key))
+    const next = new Set(Array.from(collapsedColumns).filter((k) => !visibleKeys.has(k)))
+    persistCollapsedColumns(next)
+  }
+
   // Szanse sprzedaży: tylko 2 kolumny — ograniczamy max szerokość, żeby nie rozjeżdżały się przez cały ekran.
-  // Pozostałe widoki: kolumny rozciągają się równomiernie do pełnej dostępnej szerokości.
-  const gridTemplate =
-    activeTab === "opportunities"
-      ? `repeat(${visibleColumns.length}, minmax(220px, 340px))`
-      : `repeat(${visibleColumns.length}, minmax(178px, 1fr))`
+  // Pozostałe widoki: kolumny rozciągają się równomiernie do pełnej dostępnej szerokości; zwinięte zajmują 44px.
+  const gridTemplate = visibleColumns
+    .map((col) => {
+      if (collapsedColumns.has(col.key)) return "44px"
+      return activeTab === "opportunities"
+        ? "minmax(220px, 340px)"
+        : "minmax(178px, 1fr)"
+    })
+    .join(" ")
 
   const syncScroll = (source: HTMLDivElement | null) => {
     if (!source) return
@@ -1197,6 +1231,22 @@ export default function PanelPage() {
 
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "flex-end" }}>
+          {(activeTab === "kanban" || activeTab === "opportunities") && collapsedVisibleCount > 0 && (
+            <button
+              onClick={expandAllVisibleColumns}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                padding: "6px 10px", borderRadius: 6,
+                border: "1px solid var(--accent-line)", background: "var(--accent-soft)",
+                fontSize: 12, fontWeight: 600, color: "var(--accent)",
+                cursor: "pointer",
+              }}
+              title="Rozwiń wszystkie zwinięte kolumny w tej zakładce"
+            >
+              <ChevronsRight size={13} />
+              Rozwiń kolumny ({collapsedVisibleCount})
+            </button>
+          )}
           {(activeTab === "kanban" || activeTab === "opportunities") && (items?.length ?? 0) > 0 && (
             <button
               onClick={toggleAll}
@@ -1499,6 +1549,7 @@ export default function PanelPage() {
               <div style={{ display: "grid", gridTemplateColumns: gridTemplate, columnGap: 8 }}>
                 {visibleColumns.map((col) => {
                   const colItems = displayItems.filter((i) => i.status === col.key).sort(sortItemsByDuration)
+                  const isCollapsed = collapsedColumns.has(col.key)
                   const validTargets = draggingItem ? getValidTargets(draggingItem) : []
                   const isValid = validTargets.includes(col.key)
                   const isDraggingSameCol = draggingItem?.status === col.key
@@ -1514,23 +1565,83 @@ export default function PanelPage() {
                       onDrop={(e) => handleDrop(e, col.key)}
                       onDragLeave={() => setDragOverCol(null)}
                     >
-                      <div style={{
-                        padding: "7px 10px", borderRadius: 7,
-                        background: st.solidBg, border: `1px solid ${st.solidBorder}`,
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        fontSize: 11.5, fontWeight: 700, color: st.solidText,
-                      }}>
-                        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {col.label}
-                        </span>
-                        <span style={{
-                          background: onSolid,
-                          borderRadius: 4, padding: "1px 6px",
-                          fontSize: 10.5, fontWeight: 700, flexShrink: 0, marginLeft: 4,
+                      {isCollapsed ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleColumnCollapse(col.key)}
+                          title={`Rozwiń kolumnę: ${col.label} (${colItems.length})`}
+                          style={{
+                            width: "100%",
+                            padding: "6px 4px",
+                            borderRadius: 7,
+                            background: st.solidBg,
+                            border: `1px solid ${st.solidBorder}`,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 3,
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            color: st.solidText,
+                            cursor: "pointer",
+                          }}
+                        >
+                          <ChevronsRight size={13} />
+                          <span style={{
+                            background: onSolid,
+                            borderRadius: 4,
+                            padding: "0px 5px",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            lineHeight: "15px",
+                          }}>
+                            {colItems.length}
+                          </span>
+                        </button>
+                      ) : (
+                        <div style={{
+                          padding: "7px 8px 7px 10px", borderRadius: 7,
+                          background: st.solidBg, border: `1px solid ${st.solidBorder}`,
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          gap: 4,
+                          fontSize: 11.5, fontWeight: 700, color: st.solidText,
                         }}>
-                          {colItems.length}
-                        </span>
-                      </div>
+                          <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
+                            {col.label}
+                          </span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                            <span style={{
+                              background: onSolid,
+                              borderRadius: 4, padding: "1px 6px",
+                              fontSize: 10.5, fontWeight: 700,
+                            }}>
+                              {colItems.length}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleColumnCollapse(col.key)}
+                              title={`Zwiń kolumnę: ${col.label}`}
+                              aria-label={`Zwiń kolumnę ${col.label}`}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: 20,
+                                height: 20,
+                                borderRadius: 4,
+                                border: "none",
+                                background: onSolid,
+                                color: st.solidText,
+                                cursor: "pointer",
+                                padding: 0,
+                              }}
+                            >
+                              <ChevronsLeft size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -1540,14 +1651,18 @@ export default function PanelPage() {
               <div style={{ display: "grid", gridTemplateColumns: gridTemplate, columnGap: 8, flex: 1, minHeight: 0 }}>
                 {visibleColumns.map((col) => {
                   const colItems = displayItems.filter((i) => i.status === col.key).sort(sortItemsByDuration)
+                  const isCollapsed = collapsedColumns.has(col.key)
                   const isOver = dragOverCol === col.key
                   const isDraggingOver = draggingItem !== null && isOver
                   const validTargets = draggingItem ? getValidTargets(draggingItem) : []
                   const isValid = validTargets.includes(col.key)
                   const isDraggingSameCol = draggingItem?.status === col.key
+                  const st = deriveStatusStyle(col.color)
 
-                  const dropBg: string = "transparent"
-                  let dropBorder = `1.5px dashed ${deriveStatusStyle(col.color).solidBorder}`
+                  const dropBg: string = isCollapsed
+                    ? (isDraggingOver && isValid ? "var(--accent-soft)" : "var(--panel)")
+                    : "transparent"
+                  let dropBorder = `1.5px dashed ${st.solidBorder}`
                   if (isDraggingOver && isValid) {
                     dropBorder = "1.5px dashed var(--accent)"
                   } else if (isDraggingOver && !isValid && !isDraggingSameCol) {
@@ -1564,35 +1679,74 @@ export default function PanelPage() {
                       onDrop={(e) => handleDrop(e, col.key)}
                       onDragLeave={() => setDragOverCol(null)}
                     >
-                      <div style={{
-                        display: "flex", flexDirection: "column", gap: 6,
-                        flex: 1, minHeight: 80, padding: 3, borderRadius: 6,
-                        background: dropBg, border: dropBorder,
-                        transition: "background 0.15s, border 0.15s",
-                      }}>
-                        {colItems.map((item) => (
-                          <OrderCard
-                            key={item.id}
-                            item={item}
-                            isDragging={draggingItem?.id === item.id}
-                            expanded={expandedCards.has(item.id)}
-                            onToggleExpand={() => toggleCard(item.id)}
-                            onDragStart={handleDragStart}
-                            onDragEnd={handleDragEnd}
-                            onDelete={handleDelete}
-                            onClick={() => handleCardClick(item)}
-                            onArchive={handleArchiveOpportunity}
-                          />
-                        ))}
-                        {colItems.length === 0 && (
-                          <div style={{
-                            textAlign: "center", fontSize: 10,
-                            color: "rgba(255,255,255,0.75)", padding: "12px 0",
-                          }}>
-                            Brak zleceń
-                          </div>
-                        )}
-                      </div>
+                      {isCollapsed ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleColumnCollapse(col.key)}
+                          title={`Rozwiń kolumnę: ${col.label} (${colItems.length})`}
+                          style={{
+                            flex: 1,
+                            minHeight: 160,
+                            width: "100%",
+                            padding: "12px 4px",
+                            borderRadius: 6,
+                            background: dropBg,
+                            border: dropBorder,
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            transition: "background 0.15s, border 0.15s",
+                          }}
+                        >
+                          <span
+                            style={{
+                              writingMode: "vertical-rl",
+                              transform: "rotate(180deg)",
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              color: "var(--text-dim)",
+                              letterSpacing: "0.03em",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              maxHeight: 260,
+                            }}
+                          >
+                            {col.label}
+                          </span>
+                        </button>
+                      ) : (
+                        <div style={{
+                          display: "flex", flexDirection: "column", gap: 6,
+                          flex: 1, minHeight: 80, padding: 3, borderRadius: 6,
+                          background: dropBg, border: dropBorder,
+                          transition: "background 0.15s, border 0.15s",
+                        }}>
+                          {colItems.map((item) => (
+                            <OrderCard
+                              key={item.id}
+                              item={item}
+                              isDragging={draggingItem?.id === item.id}
+                              expanded={expandedCards.has(item.id)}
+                              onToggleExpand={() => toggleCard(item.id)}
+                              onDragStart={handleDragStart}
+                              onDragEnd={handleDragEnd}
+                              onDelete={handleDelete}
+                              onClick={() => handleCardClick(item)}
+                              onArchive={handleArchiveOpportunity}
+                            />
+                          ))}
+                          {colItems.length === 0 && (
+                            <div style={{
+                              textAlign: "center", fontSize: 10,
+                              color: "rgba(255,255,255,0.75)", padding: "12px 0",
+                            }}>
+                              Brak zleceń
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}

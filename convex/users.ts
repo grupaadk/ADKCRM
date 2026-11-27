@@ -71,6 +71,7 @@ export const me = query({
       role: user.role,
       isActive: user.isActive,
       color: user.color,
+      collapsedPanelColumns: user.collapsedPanelColumns ?? [],
     };
   },
 });
@@ -532,6 +533,23 @@ export const setColor = mutation({
       await requireRole(ctx, "admin");
     }
     await ctx.db.patch(targetId, { color: args.color });
+  },
+});
+
+/**
+ * Zapisuje listę zwiniętych kolumn na tablicy Kanban (/admin/panel) dla zalogowanego usera.
+ */
+export const setCollapsedPanelColumns = mutation({
+  args: {
+    columns: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await requireUser(ctx);
+    const normalized = Array.from(
+      new Set(args.columns.map((c) => c.trim()).filter(Boolean)),
+    ).slice(0, 100);
+    await ctx.db.patch(currentUser._id, { collapsedPanelColumns: normalized });
+    return normalized;
   },
 });
 
