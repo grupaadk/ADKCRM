@@ -27,7 +27,6 @@ import {
   UserCog,
   Settings,
   ScrollText,
-  Upload,
   PanelLeftClose,
   PanelLeftOpen,
   Calendar,
@@ -67,10 +66,6 @@ const mainItems: NavItem[] = [
   { href: "/admin/zamowienia-dostawcy", label: "Dostawcy", icon: Truck },
   { href: "/admin/hr", label: "HR (Urlopy, Ekipy, Flota)", icon: Clock, alsoActiveFor: ["/admin/hr/", "/admin/ekipy/", "/admin/flota/"] },
   { href: "/admin/finanse", label: "Finanse", icon: CircleDollarSign, alsoActiveFor: ["/admin/finanse", "/admin/faktury", "/admin/wydatki"], roles: ["admin"] },
-]
-
-const toolItems: NavItem[] = [
-  { href: "/admin/dokumenty", label: "Dokumenty", icon: Upload },
 ]
 
 const adminItems: NavItem[] = [
@@ -304,7 +299,6 @@ export function AdminSidebar() {
     items.filter((it) => !it.roles || (me?.role && it.roles.includes(me.role)))
 
   const visibleMain = filterByRole(mainItems)
-  const visibleTools = filterByRole(toolItems)
   const visibleAdmin = filterByRole(adminItems)
 
   return (
@@ -358,15 +352,6 @@ export function AdminSidebar() {
         <NavSection
           label="Główne"
           items={visibleMain}
-          pathname={pathname}
-          counts={counts}
-          collapsed={collapsed}
-          onShowTooltip={showNavTooltip}
-          onHideTooltip={hideTooltip}
-        />
-        <NavSection
-          label="Narzędzia"
-          items={visibleTools}
           pathname={pathname}
           counts={counts}
           collapsed={collapsed}
