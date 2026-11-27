@@ -775,3 +775,19 @@ body > .fc-fullscreen-calendar .fc .fc-daygrid-day-frame {
   background: #2563eb;
   color: #fff;
 }
+
+/* ── Collapsed sidebar unfolding tooltip ────────────────────────── */
+@keyframes sidebar-pill-unfold {
+  from {
+    max-width: 28px;
+    opacity: 0.75;
+  }
+  to {
+    max-width: 280px;
+    opacity: 1;
+  }
+}
+
+.sidebar-pill-unfold {
+  animation: sidebar-pill-unfold 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

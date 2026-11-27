@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useQuery } from "convex/react"
@@ -89,18 +90,78 @@ function isNavItemActive(item: NavItem, pathname: string): boolean {
   return item.alsoActiveFor?.some((prefix) => pathname.startsWith(prefix)) ?? false
 }
 
+type CollapsedTooltipState = {
+  id: string
+  firstChar?: string
+  restText: string
+  shortcut?: string
+  top: number
+  left: number
+  active?: boolean
+}
+
+function CollapsedSidebarTooltip({ tooltip }: { tooltip: CollapsedTooltipState | null }) {
+  if (!tooltip || typeof document === "undefined") return null
+
+  return createPortal(
+    <div
+      key={tooltip.id}
+      role="tooltip"
+      style={{
+        position: "fixed",
+        top: tooltip.top,
+        left: tooltip.left,
+        transform: "translateY(-50%)",
+        zIndex: 60,
+        pointerEvents: "none",
+      }}
+    >
+      <div
+        className={cx(
+          "sidebar-pill-unfold inline-flex h-7 items-center overflow-hidden whitespace-nowrap rounded-md border pl-2 pr-3 text-[12.5px] shadow-lg shadow-black/35",
+          tooltip.active
+            ? "border-brand/50 bg-slate-900 text-brand"
+            : "border-slate-700/90 bg-slate-800 text-slate-100",
+        )}
+      >
+        {tooltip.firstChar !== undefined && (
+          <span
+            className={cx(
+              "font-bold",
+              tooltip.active ? "text-brand" : "text-white",
+            )}
+          >
+            {tooltip.firstChar}
+          </span>
+        )}
+        <span className="font-medium">{tooltip.restText}</span>
+        {tooltip.shortcut && (
+          <kbd className="ml-2 rounded bg-slate-700/90 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">
+            {tooltip.shortcut}
+          </kbd>
+        )}
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 function NavSection({
   label,
   items,
   pathname,
   counts,
   collapsed,
+  onShowTooltip,
+  onHideTooltip,
 }: {
   label: string
   items: NavItem[]
   pathname: string
   counts?: { clients?: number; templates?: number } | null
   collapsed: boolean
+  onShowTooltip: (el: HTMLElement, item: NavItem, active: boolean) => void
+  onHideTooltip: () => void
 }) {
   return (
     <SidebarGroup className="py-0">
@@ -121,8 +182,18 @@ function NavSection({
               <SidebarMenuItem key={item.href}>
                 <Link
                   href={item.href}
-                  title={item.label}
+                  title={collapsed ? undefined : item.label}
+                  aria-label={item.label}
                   data-active={active}
+                  onMouseEnter={(e) => {
+                    if (collapsed) onShowTooltip(e.currentTarget, item, active)
+                  }}
+                  onFocus={(e) => {
+                    if (collapsed) onShowTooltip(e.currentTarget, item, active)
+                  }}
+                  onMouseLeave={onHideTooltip}
+                  onBlur={onHideTooltip}
+                  onClick={onHideTooltip}
                   className={cx(
                     "group flex items-center rounded-md transition-colors",
                     collapsed
@@ -136,6 +207,7 @@ function NavSection({
                 >
                   {collapsed ? (
                     <span
+                      data-letter-badge="true"
                       aria-hidden="true"
                       className={cx(
                         "flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold leading-none transition-colors",
@@ -183,6 +255,38 @@ export function AdminSidebar() {
   const { state, toggleSidebar } = useSidebar()
   const collapsed = state === "collapsed"
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [tooltip, setTooltip] = useState<CollapsedTooltipState | null>(null)
+
+  const hideTooltip = useCallback(() => {
+    setTooltip(null)
+  }, [])
+
+  const showNavTooltip = useCallback((el: HTMLElement, item: NavItem, active: boolean) => {
+    const badgeEl = el.querySelector<HTMLElement>("[data-letter-badge='true']") ?? el
+    const rect = badgeEl.getBoundingClientRect()
+    const trimmed = item.label.trim()
+    const firstChar = trimmed.charAt(0).toLocaleUpperCase("pl-PL")
+    const restText = trimmed.slice(1)
+    setTooltip({
+      id: item.href,
+      firstChar,
+      restText,
+      top: rect.top + rect.height / 2,
+      left: rect.left,
+      active,
+    })
+  }, [])
+
+  const showActionTooltip = useCallback((el: HTMLElement, id: string, text: string, shortcut?: string) => {
+    const rect = el.getBoundingClientRect()
+    setTooltip({
+      id,
+      restText: text,
+      shortcut,
+      top: rect.top + rect.height / 2,
+      left: rect.right + 8,
+    })
+  }, [])
 
   // Listen for global shortcut Cmd+K / Ctrl+K
   useEffect(() => {
@@ -219,15 +323,27 @@ export function AdminSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="py-1">
+      <SidebarContent className="py-1" onScroll={hideTooltip}>
         <div className="px-3 py-2">
           <button
-            onClick={() => setIsSearchOpen(true)}
+            onClick={() => {
+              hideTooltip()
+              setIsSearchOpen(true)
+            }}
+            onMouseEnter={(e) => {
+              if (collapsed) showActionTooltip(e.currentTarget, "__search__", "Szukaj...", "⌘K")
+            }}
+            onFocus={(e) => {
+              if (collapsed) showActionTooltip(e.currentTarget, "__search__", "Szukaj...", "⌘K")
+            }}
+            onMouseLeave={hideTooltip}
+            onBlur={hideTooltip}
             className={cx(
               "flex w-full items-center gap-2 rounded-md border border-slate-700/80 bg-slate-800/80 text-slate-400 shadow-sm transition-colors hover:border-brand/70 hover:bg-slate-800 hover:text-slate-100",
               collapsed ? "justify-center px-0 py-1.5" : "px-3 py-1.5 text-sm"
             )}
-            title="Szukaj (Cmd+K)"
+            title={collapsed ? undefined : "Szukaj (Cmd+K)"}
+            aria-label="Szukaj (Cmd+K)"
           >
             <Search className="size-4 shrink-0" />
             {!collapsed && (
@@ -239,10 +355,34 @@ export function AdminSidebar() {
           </button>
         </div>
 
-        <NavSection label="Główne" items={visibleMain} pathname={pathname} counts={counts} collapsed={collapsed} />
-        <NavSection label="Narzędzia" items={visibleTools} pathname={pathname} counts={counts} collapsed={collapsed} />
+        <NavSection
+          label="Główne"
+          items={visibleMain}
+          pathname={pathname}
+          counts={counts}
+          collapsed={collapsed}
+          onShowTooltip={showNavTooltip}
+          onHideTooltip={hideTooltip}
+        />
+        <NavSection
+          label="Narzędzia"
+          items={visibleTools}
+          pathname={pathname}
+          counts={counts}
+          collapsed={collapsed}
+          onShowTooltip={showNavTooltip}
+          onHideTooltip={hideTooltip}
+        />
         {visibleAdmin.length > 0 && (
-          <NavSection label="Administracja" items={visibleAdmin} pathname={pathname} counts={counts} collapsed={collapsed} />
+          <NavSection
+            label="Administracja"
+            items={visibleAdmin}
+            pathname={pathname}
+            counts={counts}
+            collapsed={collapsed}
+            onShowTooltip={showNavTooltip}
+            onHideTooltip={hideTooltip}
+          />
         )}
       </SidebarContent>
 
@@ -258,8 +398,20 @@ export function AdminSidebar() {
             <UserMenu compact />
           )}
           <button
-            onClick={toggleSidebar}
-            title={collapsed ? "Rozwiń nawigację" : "Zwiń nawigację"}
+            onClick={() => {
+              hideTooltip()
+              toggleSidebar()
+            }}
+            onMouseEnter={(e) => {
+              if (collapsed) showActionTooltip(e.currentTarget, "__toggle__", "Rozwiń nawigację")
+            }}
+            onFocus={(e) => {
+              if (collapsed) showActionTooltip(e.currentTarget, "__toggle__", "Rozwiń nawigację")
+            }}
+            onMouseLeave={hideTooltip}
+            onBlur={hideTooltip}
+            title={collapsed ? undefined : "Zwiń nawigację"}
+            aria-label={collapsed ? "Rozwiń nawigację" : "Zwiń nawigację"}
             className={cx(
               "flex items-center justify-center rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white",
               focusRing,
@@ -272,6 +424,7 @@ export function AdminSidebar() {
           </button>
         </div>
       </SidebarFooter>
+      <CollapsedSidebarTooltip tooltip={collapsed ? tooltip : null} />
       <GlobalSearchCommand isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </Sidebar>
   )
