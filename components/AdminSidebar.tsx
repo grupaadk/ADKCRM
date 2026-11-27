@@ -124,9 +124,9 @@ function NavSection({
                   title={item.label}
                   data-active={active}
                   className={cx(
-                    "flex items-center rounded-md transition-colors",
+                    "group flex items-center rounded-md transition-colors",
                     collapsed
-                      ? "justify-center p-2.5"
+                      ? "justify-center p-1.5"
                       : "justify-between px-2.5 py-[7px] text-[12.5px]",
                     "border-l-2 border-transparent",
                     "text-slate-300 hover:bg-slate-800/80 hover:text-white",
@@ -135,7 +135,17 @@ function NavSection({
                   )}
                 >
                   {collapsed ? (
-                    <item.icon className="size-[16px] shrink-0" aria-hidden="true" />
+                    <span
+                      aria-hidden="true"
+                      className={cx(
+                        "flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold leading-none transition-colors",
+                        active
+                          ? "bg-brand/20 text-brand ring-1 ring-brand/40"
+                          : "bg-slate-800 text-slate-300 group-hover:bg-slate-700 group-hover:text-white",
+                      )}
+                    >
+                      {item.label.trim().charAt(0).toLocaleUpperCase("pl-PL")}
+                    </span>
                   ) : (
                     <>
                       <span className="flex items-center gap-x-2.5">
