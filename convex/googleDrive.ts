@@ -958,11 +958,15 @@ async function uploadFileToDrive(
 
 // ─── Mail Merge Helper ───────────────────────────────────────────────────────
 
+export function stripDocumentOrderPrefix(value: string): string {
+  return value.replace(/^ZAM_/i, "");
+}
+
 /**
  * Resolve a field mapping value from client data.
  * Handles regular fields, array fields (joined with ", "), and special fields.
  */
-function resolveFieldValue(
+export function resolveFieldValue(
   client: Record<string, unknown>,
   field: string,
 ): string {
@@ -984,6 +988,9 @@ function resolveFieldValue(
   const value = client[field];
   if (value === undefined || value === null) {
     return "";
+  }
+  if (field === "name" && typeof value === "string") {
+    return stripDocumentOrderPrefix(value);
   }
   if (Array.isArray(value)) {
     return value.join(", ");

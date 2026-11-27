@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, test, vi } from "vitest";
 import { api } from "../_generated/api";
 import { formatFakturowniaOrderNumber } from "../fakturownia";
+import { resolveFieldValue } from "../googleDrive";
 import { DEFAULT_DOCUMENTS } from "../orders";
 import schema from "../schema";
 
@@ -82,6 +83,12 @@ describe("nextOrderNumber (ZAM_{N}/{MM}/{YYYY})", () => {
     expect(formatFakturowniaOrderNumber("ZAM_1/11/2026")).toBe("ZAM_1/11/2026");
     expect(formatFakturowniaOrderNumber("  ")).toBeUndefined();
     expect(formatFakturowniaOrderNumber(undefined)).toBeUndefined();
+  });
+
+  test("resolveFieldValue strips ZAM_ prefix from order name when generating documents", () => {
+    expect(resolveFieldValue({ name: "ZAM_1/11/2026" }, "name")).toBe("1/11/2026");
+    expect(resolveFieldValue({ name: "1/11/2026" }, "name")).toBe("1/11/2026");
+    expect(resolveFieldValue({ firstName: "ZAM_Jan" }, "firstName")).toBe("ZAM_Jan");
   });
 
   test("pushOrderEstimate sends ZAM_-prefixed number to Fakturownia even for legacy order names", async () => {
